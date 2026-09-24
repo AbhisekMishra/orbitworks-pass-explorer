@@ -5,6 +5,9 @@ import viteConfig from './vite.config.ts';
 export default mergeConfig(
   viteConfig,
   defineConfig({
+    // Node-environment tests resolve with SSR conditions: without '@ow/source' they would fall back
+    // to @ow/shared's dist/ (missing on a clean CI checkout, stale locally).
+    ssr: { resolve: { conditions: ['@ow/source'] } },
     test: {
       // Logic tests run in node (fast); component tests opt into jsdom with a docblock.
       environment: 'node',
