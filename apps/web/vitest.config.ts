@@ -26,6 +26,7 @@ export default mergeConfig(
           // suite (e2e/*.spec.ts); the logic they call lives in unit-tested modules.
           'src/map/MapView.tsx',
           'src/map/mapController.ts',
+          'src/map/accessOverlay.ts',
           'src/map/TrackLayer.ts',
           'src/tracks/tracks.worker.ts',
         ],

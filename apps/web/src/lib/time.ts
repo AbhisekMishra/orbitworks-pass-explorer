@@ -78,3 +78,23 @@ export const formatDate = (epochS: number): string => iso(epochS).slice(0, 10);
 
 /** UTC hour of day, two digits: "06". */
 export const formatHour = (epochS: number): string => iso(epochS).slice(11, 13);
+
+/** Pass length with second precision: "58 s", "1 min 42 s", "12 min 5 s". */
+export function formatPassDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < SECONDS_PER_MINUTE) return `${s} s`;
+  const min = Math.floor(s / SECONDS_PER_MINUTE);
+  const rest = s % SECONDS_PER_MINUTE;
+  return rest === 0 ? `${min} min` : `${min} min ${rest} s`;
+}
+
+/** ISO instant from the API → epoch seconds. */
+export const toEpochS = (isoInstant: string): number => Date.parse(isoInstant) / MS_PER_SECOND;
+
+/** "2027-03-01T06:58:16Z": the API's instant format (no milliseconds). */
+export const toIsoSeconds = (epochS: number): string => `${iso(epochS).slice(0, 19)}Z`;
+
+/** "2027-03-01" → UTC midnight in epoch seconds; null for malformed or impossible days. */
+export function parseUtcDay(value: string): number | null {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseUtcMinute(`${value}T00:00`) : null;
+}

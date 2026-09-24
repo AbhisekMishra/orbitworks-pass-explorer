@@ -3,7 +3,15 @@
  * to move it, the handles to resize it, click anywhere to jump), exact UTC inputs, presets and
  * playback. Every change goes to the store; the map applies it as GPU uniforms (no refetch).
  */
-import { memo, useMemo, useRef, type ChangeEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import type { Pass } from '@ow/shared';
+import {
+  memo,
+  useMemo,
+  useRef,
+  type CSSProperties,
+  type ChangeEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 
 import { PauseIcon, PlayIcon } from '../../components/icons';
 import { useElementWidth } from '../../lib/useElementWidth';
@@ -15,7 +23,9 @@ import {
   formatHour,
   fromDateTimeInput,
   toDateTimeInput,
+  toEpochS,
 } from '../../lib/time';
+import type { SatelliteColor } from '../../map/colors';
 import { useAppStore } from '../../state/store';
 
 import styles from './Timeline.module.css';
@@ -36,17 +46,34 @@ import {
 } from './timelineMath';
 import { usePlayback } from './usePlayback';
 
-export function Timeline() {
+const NO_PASSES: readonly Pass[] = [];
+
+interface TimelineProps {
+  colors: ReadonlyMap<string, SatelliteColor>;
+  /** Passes of the accesses query: marked on the timeline, in sync with the table and the map. */
+  passes?: readonly Pass[];
+}
+
+/** Memoized: App re-renders while the accesses controls move; the timeline need not. */
+export const Timeline = memo(function Timeline({ colors, passes = NO_PASSES }: Readonly<TimelineProps>) {
   const bounds = useAppStore((s) => s.bounds);
   usePlayback();
   return (
     <footer className={styles.timeline} aria-label="Timeline">
-      {bounds ? <TimelineBody bounds={bounds} /> : <div className={styles.placeholder} aria-busy="true" />}
+      {bounds ? (
+        <TimelineBody bounds={bounds} colors={colors} passes={passes} />
+      ) : (
+        <div className={styles.placeholder} aria-busy="true" />
+      )}
     </footer>
   );
-}
+});
 
-function TimelineBody({ bounds }: Readonly<{ bounds: Bounds }>) {
+function TimelineBody({
+  bounds,
+  colors,
+  passes,
+}: Readonly<{ bounds: Bounds; colors: ReadonlyMap<string, SatelliteColor>; passes: readonly Pass[] }>) {
   const timeWindow = useAppStore((s) => s.timeWindow);
   return (
     <>
@@ -55,7 +82,9 @@ function TimelineBody({ bounds }: Readonly<{ bounds: Bounds }>) {
         <RangeInputs bounds={bounds} timeWindow={timeWindow} />
         <Presets bounds={bounds} timeWindow={timeWindow} />
       </div>
-      <TimeTrack bounds={bounds} timeWindow={timeWindow} />
+      <TimeTrack bounds={bounds} timeWindow={timeWindow}>
+        <PassTicks bounds={bounds} passes={passes} colors={colors} />
+      </TimeTrack>
     </>
   );
 }
@@ -173,7 +202,11 @@ interface Drag {
   origin: TimeWindow;
 }
 
-function TimeTrack({ bounds, timeWindow }: Readonly<{ bounds: Bounds; timeWindow: TimeWindow }>) {
+function TimeTrack({
+  bounds,
+  timeWindow,
+  children,
+}: Readonly<{ bounds: Bounds; timeWindow: TimeWindow; children?: React.ReactNode }>) {
   const ref = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
   const width = useElementWidth(ref);
@@ -233,6 +266,7 @@ function TimeTrack({ bounds, timeWindow }: Readonly<{ bounds: Bounds; timeWindow
       onPointerCancel={end}
     >
       <TickMarks bounds={bounds} width={width} />
+      {children}
       <div
         className={styles.timeWindow}
         data-testid="timeline-window"
@@ -289,5 +323,71 @@ const TickMarks = memo(function TickMarks({ bounds, width }: Readonly<{ bounds: 
           </div>
         ))}
     </div>
+  );
+});
+
+/**
+ * One mark per pass at its start time. Hovering one highlights the same pass in the table and on
+ * the map; clicking frames it. Pointer-down is stopped so marks never start a window drag.
+ */
+const PassTicks = memo(function PassTicks({
+  bounds,
+  passes,
+  colors,
+}: Readonly<{ bounds: Bounds; passes: readonly Pass[]; colors: ReadonlyMap<string, SatelliteColor> }>) {
+  // Parsed once per pass list, not on every hover.
+  const marks = useMemo(
+    () =>
+      passes.map((pass) => {
+        const startS = toEpochS(pass.start);
+        return { pass, startS, endS: toEpochS(pass.end), left: timeToFraction(startS, bounds) * 100 };
+      }),
+    [passes, bounds],
+  );
+  if (marks.length === 0) return null;
+  return (
+    <div className={styles.passTicks} data-testid="timeline-passes">
+      {marks.map((m) => (
+        <PassTick key={m.pass.id} {...m} color={colors.get(m.pass.satellite)?.hex} />
+      ))}
+    </div>
+  );
+});
+
+/** Memoized with boolean selectors: a hover change re-renders the two marks that flip, only. */
+const PassTick = memo(function PassTick({
+  pass,
+  startS,
+  endS,
+  left,
+  color,
+}: Readonly<{ pass: Pass; startS: number; endS: number; left: number; color: string | undefined }>) {
+  const hovered = useAppStore((s) => s.hoveredPassId === pass.id);
+  const selected = useAppStore((s) => s.selectedPassId === pass.id);
+  const setHoveredPass = useAppStore((s) => s.setHoveredPass);
+  const focusPass = useAppStore((s) => s.focusPass);
+  return (
+    <button
+      type="button"
+      className={styles.passTick}
+      style={{ left: `${left}%`, '--sat-color': color } as CSSProperties}
+      data-pass-id={pass.id}
+      data-hovered={hovered}
+      aria-pressed={selected}
+      aria-label={`${pass.satellite} pass at ${pass.start.slice(11, 16)} UTC on ${pass.start.slice(0, 10)}`}
+      title={`${pass.satellite} · ${pass.start.slice(0, 10)} ${pass.start.slice(11, 19)} UTC`}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+      }}
+      onMouseEnter={() => {
+        setHoveredPass(pass.id);
+      }}
+      onMouseLeave={() => {
+        setHoveredPass(null);
+      }}
+      onClick={() => {
+        focusPass({ id: pass.id, startS, endS });
+      }}
+    />
   );
 });

@@ -18,6 +18,7 @@ const SHORTCUTS: [keys: string[], action: string][] = [
   [['Shift', '1…0'], 'Show only that satellite'],
   [['A'], 'Show all satellites'],
   [['G'], 'Switch globe / flat map'],
+  [['Esc'], 'Remove the pin'],
   [['?'], 'This help'],
 ];
 
@@ -77,6 +78,11 @@ export function HelpDialog({ stats }: Readonly<Props>) {
           <li>
             <strong>Hover a track</strong> to see when the satellite was there, its altitude and whether the
             ground below was sunlit.
+          </li>
+          <li>
+            <strong>Click the map</strong> to find when satellites pass over that place: set the radius, days
+            and daylight, then hover or click a pass in the list, on the map or on the timeline. Export the
+            list as CSV.
           </li>
         </ol>
 

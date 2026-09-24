@@ -62,3 +62,9 @@
 .night {
   color: var(--color-night);
 }
+
+.hint {
+  margin: 6px 0 0;
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+}

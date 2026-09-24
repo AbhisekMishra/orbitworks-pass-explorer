@@ -31,6 +31,9 @@ function dispatch(action: ShortcutAction): void {
     case 'openHelp':
       s.setHelpOpen(true);
       break;
+    case 'clearPin':
+      s.setPin(null);
+      break;
   }
 }
 

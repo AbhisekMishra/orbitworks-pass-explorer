@@ -7,6 +7,10 @@ import {
   formatDay,
   formatDuration,
   formatHours,
+  formatPassDuration,
+  parseUtcDay,
+  toEpochS,
+  toIsoSeconds,
   formatTime,
   fromDateTimeInput,
   toDateTimeInput,
@@ -70,5 +74,31 @@ describe('formatHours', () => {
     [22.25, '22:15'],
   ])('%d h → %s', (h, expected) => {
     expect(formatHours(h)).toBe(expected);
+  });
+});
+
+describe('formatPassDuration', () => {
+  it.each([
+    [58.4, '58 s'],
+    [60, '1 min'],
+    [102, '1 min 42 s'],
+    [725, '12 min 5 s'],
+    [-3, '0 s'],
+  ])('%d s → %s', (s, expected) => {
+    expect(formatPassDuration(s)).toBe(expected);
+  });
+});
+
+describe('instants and days', () => {
+  it('converts API instants both ways, without milliseconds', () => {
+    expect(toEpochS('2027-03-01T06:58:30Z')).toBe(T);
+    expect(toIsoSeconds(T)).toBe('2027-03-01T06:58:30Z');
+  });
+
+  it('parses whole UTC days, rejecting malformed and impossible ones', () => {
+    expect(parseUtcDay('2027-03-01')).toBe(Date.UTC(2027, 2, 1) / 1000);
+    expect(parseUtcDay('2027-02-30')).toBeNull();
+    expect(parseUtcDay('2027-3-1')).toBeNull();
+    expect(parseUtcDay('')).toBeNull();
   });
 });

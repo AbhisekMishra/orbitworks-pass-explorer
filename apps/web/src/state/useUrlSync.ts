@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { clampDays } from '../features/accesses/accessWindow';
 import { defaultWindow } from '../features/timeline/timelineMath';
 import { sameItems } from '../lib/equality';
 
@@ -18,6 +19,9 @@ export function urlFor(s: AppState): string | null {
     defaultWindow: defaultWindow(s.bounds),
     projection: s.projection,
     camera: s.camera,
+    access: s.access,
+    // The default query days: the dataset span snapped to whole UTC days.
+    defaultAccessDays: clampDays(s.bounds.startS, s.bounds.endS, s.bounds),
   });
 }
 
@@ -40,7 +44,15 @@ export function useUrlSync(): void {
     const unsubscribe = appStore.subscribe(
       // While playing the window moves every frame and nothing is written: leave it out then.
       (s) =>
-        [s.bounds, s.hidden, s.playing ? null : s.timeWindow, s.projection, s.camera, s.playing] as const,
+        [
+          s.bounds,
+          s.hidden,
+          s.playing ? null : s.timeWindow,
+          s.projection,
+          s.camera,
+          s.playing,
+          s.access,
+        ] as const,
       () => {
         clearTimeout(timer);
         timer = setTimeout(write, URL_WRITE_DELAY_MS);

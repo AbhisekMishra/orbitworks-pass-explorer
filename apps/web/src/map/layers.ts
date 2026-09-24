@@ -7,10 +7,10 @@
  * window are visible, so GPU work follows the window length rather than the whole week.
  */
 import type { Layer } from '@deck.gl/core';
-import { ScatterplotLayer } from '@deck.gl/layers';
+import { PathLayer, ScatterplotLayer } from '@deck.gl/layers';
 
 import type { TimeWindow } from '../features/timeline/timelineMath';
-import type { TrackHover } from '../state/store';
+import type { MapHover } from '../state/store';
 import {
   POSITION_SIZE,
   RENDER_ALTITUDE_M,
@@ -25,6 +25,8 @@ import { TrackLayer } from './TrackLayer';
 
 export const TRACK_LAYER_PREFIX = 'track:';
 export const HEADS_LAYER_ID = 'satellite-heads';
+export const PASSES_LAYER_ID = 'access-passes';
+const PASSES_OUTLINE_LAYER_ID = 'access-passes-outline';
 
 const TRACK_WIDTH_PX = 2;
 const FOCUSED_WIDTH_SCALE = 1.75;
@@ -35,6 +37,16 @@ const TRAIL_FADE_FLOOR = 0.35;
 const HIGHLIGHT_RGBA: [number, number, number, number] = [255, 255, 255, 220];
 const HEAD_RADIUS_PX = 5;
 const HEAD_OUTLINE_RGB: [number, number, number] = [11, 16, 32];
+/** While a pin is set the regular tracks recede so the matching pass portions stand out. */
+const TRACKS_WITH_PIN_OPACITY = 0.3;
+const PASS_WIDTH_PX = 3;
+const PASS_EMPHASIS_WIDTH_PX = 7;
+/** Passes outside the timeline window stay visible but faint: the window picks the ones that pop. */
+const PASS_OUTSIDE_WINDOW_ALPHA = 70;
+const OPAQUE = 255;
+/** Dark halo under pass portions: readable over any track color and on the dark basemap. */
+const PASS_OUTLINE_PX = 3;
+const PASS_OUTLINE_RGBA: [number, number, number, number] = [3, 5, 11, 200];
 
 export interface LayerInput {
   tracks: LoadedTracks;
@@ -44,6 +56,22 @@ export interface LayerInput {
   focusedSatellite: string | null;
   /** Basemap layer to draw beneath (keeps place labels readable above the tracks). */
   beforeId?: string;
+  /** Accesses: the portions of track inside the circle, and which one is emphasized. */
+  passes?: readonly PassPath[];
+  hoveredPassId?: string | null;
+  selectedPassId?: string | null;
+  pinActive?: boolean;
+}
+
+/** A pass portion ready to draw: [lon, lat, altM] vertices with continuous longitudes. */
+export interface PassPath {
+  id: string;
+  satellite: string;
+  /** Epoch seconds: passes inside the timeline window are drawn at full strength. */
+  startS: number;
+  endS: number;
+  path: [number, number, number][];
+  color: readonly [number, number, number];
 }
 
 /**
@@ -130,7 +158,7 @@ export function satelliteHeads(input: LayerInput): SatelliteHead[] {
 }
 
 export function buildLayers(input: LayerInput): Layer[] {
-  const { tracks, colors, timeWindow, hidden, beforeId } = input;
+  const { tracks, colors, timeWindow, hidden, beforeId, pinActive = false } = input;
   // A hidden satellite cannot be the focus (e.g. hidden from the panel row under the pointer):
   // otherwise every other satellite would stay dimmed while nothing is emphasized.
   const focus =
@@ -155,7 +183,7 @@ export function buildLayers(input: LayerInput): Layer[] {
         jointRounded: true,
         capRounded: true,
         visible,
-        opacity: focus !== null && !focused ? DIMMED_OPACITY : 1,
+        opacity: trackOpacity(focus, focused, pinActive),
         // Hidden chunks get constant uniforms: with no prop change deck.gl skips their update
         // entirely (~90 % of the ~150 chunk layers during a scrub).
         windowStartRelS: visible ? windowStartRelS : 0,
@@ -185,7 +213,61 @@ export function buildLayers(input: LayerInput): Layer[] {
     ...placement(beforeId),
   });
 
-  return [...trackLayers, heads];
+  return [...trackLayers, heads, ...passLayers(input)];
+}
+
+function trackOpacity(focus: string | null, focused: boolean, pinActive: boolean): number {
+  if (focus !== null) return focused ? 1 : DIMMED_OPACITY;
+  return pinActive ? TRACKS_WITH_PIN_OPACITY : 1;
+}
+
+/** Pass portions, drawn over everything else with a dark halo; hovered/selected ones widen. */
+function passLayers({
+  passes = [],
+  hoveredPassId = null,
+  selectedPassId = null,
+  beforeId,
+  timeWindow,
+}: LayerInput): Layer[] {
+  if (passes.length === 0) return [];
+  const emphasized = (d: PassPath) => d.id === hoveredPassId || d.id === selectedPassId;
+  const width = (d: PassPath) => (emphasized(d) ? PASS_EMPHASIS_WIDTH_PX : PASS_WIDTH_PX);
+  // Which passes are in the timeline window only changes a few times a minute while playing:
+  // key the colour/width updates on that set, not on the window (which moves every frame).
+  const inWindowIds = new Set(
+    passes.filter((d) => d.endS >= timeWindow.startS && d.startS <= timeWindow.endS).map((d) => d.id),
+  );
+  const inWindowKey = [...inWindowIds].join(',');
+  const strong = (d: PassPath) => emphasized(d) || inWindowIds.has(d.id);
+  const alpha = (d: PassPath) => (strong(d) ? OPAQUE : PASS_OUTSIDE_WINDOW_ALPHA);
+  const common = {
+    data: passes,
+    getPath: (d: PassPath) => d.path,
+    widthUnits: 'pixels' as const,
+    capRounded: true,
+    jointRounded: true,
+    updateTriggers: {
+      getWidth: [hoveredPassId, selectedPassId, inWindowKey],
+      getColor: [hoveredPassId, selectedPassId, inWindowKey],
+    },
+    ...placement(beforeId),
+  };
+  return [
+    new PathLayer<PassPath>({
+      ...common,
+      id: PASSES_OUTLINE_LAYER_ID,
+      getColor: PASS_OUTLINE_RGBA,
+      // Faint passes get no halo at all (zero width: nothing rasterized).
+      getWidth: (d) => (strong(d) ? width(d) + PASS_OUTLINE_PX : 0),
+    }),
+    new PathLayer<PassPath>({
+      ...common,
+      id: PASSES_LAYER_ID,
+      getColor: (d) => [...d.color, alpha(d)],
+      getWidth: width,
+      pickable: true,
+    }),
+  ];
 }
 
 /** The parts of a deck.gl PickingInfo the tooltip needs. */
@@ -198,18 +280,21 @@ export interface PickLike {
   y: number;
 }
 
+export const isPassPath = (o: unknown): o is PassPath =>
+  typeof o === 'object' && o !== null && 'id' in o && 'path' in o && typeof o.id === 'string';
+
 const isHead = (o: unknown): o is SatelliteHead =>
   typeof o === 'object' && o !== null && 'satellite' in o && 'timeS' in o && 'position' in o;
 
 /** Resolves what the pointer is over into tooltip content, or null. */
-export function hoverFromPick(
-  pick: PickLike,
-  tracks: LoadedTracks,
-  timeWindow: TimeWindow,
-): TrackHover | null {
+export function hoverFromPick(pick: PickLike, tracks: LoadedTracks, timeWindow: TimeWindow): MapHover | null {
+  if (pick.layerId === PASSES_LAYER_ID && isPassPath(pick.object)) {
+    return { kind: 'pass', passId: pick.object.id, x: pick.x, y: pick.y };
+  }
   if (pick.layerId === HEADS_LAYER_ID && isHead(pick.object)) {
     const [lon, lat] = pick.object.position;
     return {
+      kind: 'track',
       satellite: pick.object.satellite,
       timeS: pick.object.timeS,
       lon,
@@ -235,5 +320,5 @@ export function hoverFromPick(
   if (!hit) return null;
   const timeS = tracks.t0S + hit.timeRelS;
   const sample = sampleTrack(track, timeS);
-  return sample ? { satellite, timeS, ...sample, x: pick.x, y: pick.y } : null;
+  return sample ? { kind: 'track', satellite, timeS, ...sample, x: pick.x, y: pick.y } : null;
 }

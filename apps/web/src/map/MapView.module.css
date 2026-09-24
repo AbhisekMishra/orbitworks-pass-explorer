@@ -4,3 +4,19 @@
   inset: 0;
   background: radial-gradient(ellipse at 50% 45%, #0d1630 0%, var(--color-space) 70%);
 }
+
+/* Clicking the map drops the accesses pin: say so with the cursor (MapLibre switches to "grabbing"
+   while dragging). */
+/* stylelint-disable-next-line selector-class-pattern -- MapLibre's own class names */
+.map :global(.maplibregl-canvas-container.maplibregl-interactive) {
+  cursor: crosshair;
+}
+
+.pin {
+  cursor: grab;
+  filter: drop-shadow(0 3px 6px rgb(0 0 0 / 55%));
+}
+
+.pin:active {
+  cursor: grabbing;
+}

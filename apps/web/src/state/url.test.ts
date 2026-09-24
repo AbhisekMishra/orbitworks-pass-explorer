@@ -94,3 +94,46 @@ describe('parseUrlState', () => {
     expect(parseUrlState(`?sats=${ids.join(',')}`).satellites).toHaveLength(64);
   });
 });
+
+describe('accesses in links', () => {
+  const DAY = 86_400;
+  const week = { startS: T0, endS: T0 + 7 * DAY };
+  const access = { pin: { lat: 24.4539, lon: 54.3773 }, radiusKm: 400, ...week, daylightOnly: false };
+
+  it('writes nothing about accesses without a pin, and only non-defaults with one', () => {
+    expect(serializeUrlState({ ...base, access: { ...access, pin: null }, defaultAccessDays: week })).toBe(
+      '',
+    );
+    expect(serializeUrlState({ ...base, access, defaultAccessDays: week })).toBe('?pin=24.454,54.377');
+  });
+
+  it('round-trips pin, radius, inclusive days and the daylight filter', () => {
+    const qs = serializeUrlState({
+      ...base,
+      access: { ...access, radiusKm: 600, startS: T0 + DAY, endS: T0 + 4 * DAY, daylightOnly: true },
+      defaultAccessDays: week,
+    });
+    expect(qs).toBe('?pin=24.454,54.377&r=600&afrom=2027-03-02&ato=2027-03-04&daylight=1');
+    expect(parseUrlState(qs)).toEqual({
+      pin: { lat: 24.454, lon: 54.377 },
+      radiusKm: 600,
+      accessDays: { startS: T0 + DAY, endS: T0 + 4 * DAY },
+      daylightOnly: true,
+    });
+  });
+
+  it.each([
+    ['?pin=91,0', 'pin latitude out of range'],
+    ['?pin=0,200', 'pin longitude out of range'],
+    ['?pin=1,2,3', 'pin with extra values'],
+    ['?r=5', 'radius below the minimum'],
+    ['?r=9999', 'radius above the maximum'],
+    ['?r=400.5', 'fractional radius'],
+    ['?afrom=2027-03-04&ato=2027-03-02', 'inverted days'],
+    ['?afrom=2027-02-30&ato=2027-03-02', 'impossible day'],
+    ['?afrom=2027-03-01', 'missing last day'],
+    ['?daylight=yes', 'daylight flag not "1"'],
+  ])('ignores %s (%s)', (qs) => {
+    expect(parseUrlState(qs)).toEqual({});
+  });
+});

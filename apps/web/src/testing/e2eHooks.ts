@@ -25,6 +25,10 @@ export interface E2EHooks {
     projection: string;
     playing: boolean;
     t0S: number | null;
+    pin: { lat: number; lon: number } | null;
+    radiusKm: number;
+    hoveredPassId: string | null;
+    selectedPassId: string | null;
   };
   layers: () => LayerSnapshot[];
   styleLoaded: () => boolean;
@@ -34,6 +38,8 @@ export interface E2EHooks {
    * that satellite), in page coordinates; null when none is on screen.
    */
   trackPoint: () => { x: number; y: number; satellite: string; timeS: number } | null;
+  /** The middle of a drawn pass portion that is on screen (page coordinates), or null. */
+  passPoint: () => { x: number; y: number; id: string } | null;
 }
 
 declare global {
@@ -57,6 +63,10 @@ export function installE2EHooks(controller: MapController, getTracks: () => Load
         projection: s.projection,
         playing: s.playing,
         t0S: getTracks()?.t0S ?? null,
+        pin: s.access.pin,
+        radiusKm: s.access.radiusKm,
+        hoveredPassId: s.hoveredPassId,
+        selectedPassId: s.selectedPassId,
       };
     },
     layers: () =>
@@ -76,6 +86,19 @@ export function installE2EHooks(controller: MapController, getTracks: () => Load
         };
       }),
     styleLoaded: () => controller.map.isStyleLoaded() === true,
+    passPoint: () => {
+      const rect = controller.map.getContainer().getBoundingClientRect();
+      const canvas = controller.map.getCanvas();
+      for (const portion of controller.portions()) {
+        const vertex = portion.path[Math.floor(portion.path.length / 2)];
+        if (!vertex) continue;
+        const { x, y } = controller.map.project([vertex[0], vertex[1]]);
+        if (document.elementFromPoint(rect.left + x, rect.top + y) === canvas) {
+          return { x: rect.left + x, y: rect.top + y, id: portion.id };
+        }
+      }
+      return null;
+    },
     trackPoint: () => {
       const tracks = getTracks();
       if (!tracks) return null;
@@ -93,8 +116,14 @@ export function installE2EHooks(controller: MapController, getTracks: () => Load
           }),
         )
         .filter((s) => s !== null);
+      const canvas = controller.map.getCanvas();
+      // On the map, and not under a floating panel (the pointer must actually reach the canvas).
       const inside = (s: { x: number; y: number }) =>
-        s.x > MARGIN_PX && s.y > MARGIN_PX && s.x < rect.width - MARGIN_PX && s.y < rect.height - MARGIN_PX;
+        s.x > MARGIN_PX &&
+        s.y > MARGIN_PX &&
+        s.x < rect.width - MARGIN_PX &&
+        s.y < rect.height - MARGIN_PX &&
+        document.elementFromPoint(rect.left + s.x, rect.top + s.y) === canvas;
       const isolated = samples.find(
         (s) =>
           inside(s) &&

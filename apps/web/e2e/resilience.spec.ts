@@ -53,8 +53,27 @@ test.describe('Error and degraded states', () => {
         ? { sources: Object.keys(map.getStyle().sources), first: map.getStyle().layers[0]?.id }
         : null;
     });
-    expect(style).toEqual({ sources: [], first: 'background' });
+    // Only the app's own accesses circle source: no basemap tiles.
+    expect(style).toEqual({ sources: ['access-circle'], first: 'background' });
     expect(await page.evaluate(() => window.__OW_E2E__?.styleLoaded())).toBe(true);
     expect((await hooks.state(page)).t0S).not.toBeNull();
+  });
+
+  test('a failed passes request offers a retry that recovers', async ({ page }) => {
+    let fail = true;
+    await page.route('**/api/v1/accesses**', (route) =>
+      fail
+        ? route.fulfill({
+            status: 503,
+            json: { statusCode: 503, error: 'Service Unavailable', message: 'Busy, try again' },
+          })
+        : route.fallback(),
+    );
+    await openApp(page, '?pin=24.454,54.377');
+    const panel = page.getByTestId('access-panel');
+    await expect(panel.getByRole('alert')).toContainText('Busy, try again', { timeout: 20_000 });
+    fail = false;
+    await panel.getByRole('button', { name: /Retry/ }).click();
+    await expect(panel.locator('[data-pass-id]').first()).toBeVisible();
   });
 });

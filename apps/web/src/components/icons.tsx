@@ -97,3 +97,16 @@ export const LogoMark = (p: IconProps) => (
     <circle cx="20.2" cy="7.6" r="1.4" fill="currentColor" stroke="none" />
   </Icon>
 );
+
+export const PinIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z" />
+    <circle cx="12" cy="9.8" r="2.3" />
+  </Icon>
+);
+
+export const DownloadIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+  </Icon>
+);
