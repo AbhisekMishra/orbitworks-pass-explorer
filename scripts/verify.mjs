@@ -24,7 +24,8 @@ const started = Date.now();
 for (const [label, script] of steps) {
   const t0 = Date.now();
   process.stdout.write(`\n▶ ${label}\n`);
-  const res = spawnSync('pnpm', ['run', '--silent', script], {
+  // No --silent: it propagates to nested `pnpm -r` runs and would hide *why* a step failed.
+  const res = spawnSync('pnpm', ['run', script], {
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });

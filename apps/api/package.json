@@ -1,0 +1,42 @@
+{
+  "name": "@ow/api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "REST API over the satellite pass dataset (Fastify + DuckDB)",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch --env-file=dev.env --conditions=@ow/source src/server.ts",
+    "seed": "tsx --conditions=@ow/source src/scripts/seed.ts",
+    "prebuild": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "esbuild src/server.ts src/scripts/seed.ts --bundle --platform=node --target=node22 --format=esm --packages=external --sourcemap --outdir=dist --entry-names=[name]",
+    "start": "node --enable-source-maps dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:changed": "vitest run --changed --passWithNoTests"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "1.5.5-r.5",
+    "@fastify/compress": "^9.2.0",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.1",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/swagger": "^9.9.0",
+    "@fastify/swagger-ui": "^6.1.1",
+    "@ow/shared": "workspace:*",
+    "close-with-grace": "^2.5.0",
+    "fastify": "^5.12.5",
+    "fastify-type-provider-zod": "^7.0.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@vitest/coverage-v8": "^5.0.1",
+    "esbuild": "^0.28.2",
+    "fast-check": "^4.10.2",
+    "pino-pretty": "^13.1.3",
+    "tsx": "^4.23.15",
+    "vitest": "^5.0.1"
+  }
+}

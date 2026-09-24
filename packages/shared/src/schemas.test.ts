@@ -8,8 +8,9 @@ import {
   DatasetSchema,
   PassSchema,
   SatelliteListSchema,
+  TracksBinaryQuerySchema,
+  TracksGeoJsonQuerySchema,
   TracksGeoJsonSchema,
-  TracksQuerySchema,
   UtcInstantSchema,
   type AccessesResponse,
   type Pass,
@@ -87,48 +88,45 @@ describe('UtcInstantSchema', () => {
   );
 });
 
-describe('TracksQuerySchema', () => {
-  it('defaults to GeoJSON, which needs a bounded window', () => {
-    expect(messages(TracksQuerySchema.safeParse({}))).toMatch(/format=binary/);
-    expect(messages(TracksQuerySchema.safeParse({ start: T0 }))).toMatch(/requires "start" and "end"/);
+describe('TracksGeoJsonQuerySchema', () => {
+  it('requires a bounded window and points to the binary endpoint', () => {
+    expect(messages(TracksGeoJsonQuerySchema.safeParse({}))).toMatch(/\/tracks\/binary/);
+    expect(messages(TracksGeoJsonQuerySchema.safeParse({ start: T0 }))).toMatch(/requires "start" and "end"/);
   });
 
-  it('accepts a GeoJSON window up to exactly 24 h and rejects longer or reversed ones', () => {
-    expect(TracksQuerySchema.parse({ start: T0, end: '2027-03-02T00:00:00Z' })).toMatchObject({
-      format: 'geojson',
+  it('accepts a window up to exactly 6 h and rejects longer or reversed ones', () => {
+    expect(TracksGeoJsonQuerySchema.parse({ start: T0, end: '2027-03-01T06:00:00Z' })).toEqual({
       start: T0_MS,
+      end: Date.parse('2027-03-01T06:00:00Z'),
     });
-    expect(messages(TracksQuerySchema.safeParse({ start: T0, end: '2027-03-02T00:00:01Z' }))).toMatch(
-      /24 hours/,
+    expect(messages(TracksGeoJsonQuerySchema.safeParse({ start: T0, end: '2027-03-01T06:00:01Z' }))).toMatch(
+      /6 hours/,
     );
-    expect(messages(TracksQuerySchema.safeParse({ start: '2027-03-02', end: T0 }))).toMatch(/after/);
+    expect(messages(TracksGeoJsonQuerySchema.safeParse({ start: '2027-03-02', end: T0 }))).toMatch(/after/);
   });
+});
 
-  it('allows the whole dataset in binary, with or without one-sided windows', () => {
-    expect(TracksQuerySchema.parse({ format: 'binary' })).toEqual({ format: 'binary' });
-    expect(TracksQuerySchema.parse({ format: 'binary', start: T0 })).toEqual({
-      format: 'binary',
-      start: T0_MS,
-    });
-    expect(TracksQuerySchema.parse({ format: 'binary', satellites: 'YAM20,YAM21' }).satellites).toEqual([
+describe('TracksBinaryQuerySchema', () => {
+  it('allows the whole dataset, one-sided windows and satellite filters', () => {
+    expect(TracksBinaryQuerySchema.parse({})).toEqual({});
+    expect(TracksBinaryQuerySchema.parse({ start: T0 })).toEqual({ start: T0_MS });
+    expect(TracksBinaryQuerySchema.parse({ satellites: 'YAM20,YAM21' }).satellites).toEqual([
       'YAM20',
       'YAM21',
     ]);
   });
 
-  it('allows exactly 31 days in binary', () => {
-    expect(
-      TracksQuerySchema.safeParse({ format: 'binary', start: '2027-01-01', end: '2027-02-01' }).success,
-    ).toBe(true);
+  it('allows exactly 31 days', () => {
+    expect(TracksBinaryQuerySchema.safeParse({ start: '2027-01-01', end: '2027-02-01' }).success).toBe(true);
   });
 
   it.each([
-    [{ format: 'binary', start: '2027-03-02', end: '2027-03-01' }, /after/],
-    [{ format: 'binary', start: '2027-03-01', end: '2027-03-01' }, /after/],
-    [{ format: 'binary', start: '2027-01-01', end: '2027-02-01T00:00:01Z' }, /31 days/],
-    [{ format: 'csv' }, /./],
+    [{ start: '2027-03-02', end: '2027-03-01' }, /after/],
+    [{ start: '2027-03-01', end: '2027-03-01' }, /after/],
+    [{ start: '2027-01-01', end: '2027-02-01T00:00:01Z' }, /31 days/],
+    [{ satellites: 'bad id' }, /Satellite ids/],
   ])('rejects %j', (input, message) => {
-    const res = TracksQuerySchema.safeParse(input);
+    const res = TracksBinaryQuerySchema.safeParse(input);
     expect(res.success).toBe(false);
     expect(messages(res)).toMatch(message);
   });
@@ -143,6 +141,7 @@ describe('AccessesQuerySchema', () => {
       lon: 55.27,
       radiusKm: RADIUS_KM.default,
       daylightOnly: false,
+      includePath: false,
     });
   });
 
@@ -268,6 +267,7 @@ describe('response schemas', () => {
         end: T0,
         satellites: ['YAM20'],
         daylightOnly: false,
+        includePath: true,
       },
       passes: [pass],
       stats: {
@@ -301,6 +301,12 @@ describe('response schemas', () => {
     const res = PassSchema.safeParse({ ...pass, [field]: value });
     expect(res.success).toBe(false);
     expect(res.error?.issues.map((i) => i.path[0])).toEqual([field]);
+  });
+
+  it('makes the pass path optional (omitted unless requested)', () => {
+    const withoutPath: Pass = { ...pass };
+    delete withoutPath.path;
+    expect(PassSchema.parse(withoutPath)).not.toHaveProperty('path');
   });
 
   it('rejects GeoJSON coordinates without altitude', () => {

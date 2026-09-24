@@ -17,10 +17,16 @@ export const MAX_QUERY_SPAN_DAYS = 31;
 export const INSTANT_RANGE_MS = { min: Date.UTC(2000, 0, 1), max: Date.UTC(2100, 0, 1) } as const;
 
 /**
- * GeoJSON is ~40× larger than the binary track format; unbounded it would be 59 MB for the week.
- * The GeoJSON representation is therefore limited to windows of this length.
+ * GeoJSON is ~40× larger than the binary track format (59 MB for the week) and costs ~200 ms of
+ * server CPU per 24 h of all satellites, so the GeoJSON representation is limited to this window.
  */
-export const MAX_GEOJSON_SPAN_HOURS = 24;
+export const MAX_GEOJSON_SPAN_HOURS = 6;
+
+/**
+ * Filtered binary streams are encoded on demand; anything larger than this should download the
+ * full precompressed stream (0.5 MB, cached) and filter locally. Caps per-request CPU at ~10 ms.
+ */
+export const MAX_FILTERED_BINARY_SPAN_HOURS = 24;
 
 /** Hard cap on the number of satellites accepted in a single query string (defensive input bound). */
 export const MAX_SATELLITES_PER_QUERY = 64;
