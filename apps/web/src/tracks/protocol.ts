@@ -1,10 +1,6 @@
 /** Messages between the main thread and the track decode worker. */
 import type { LoadedTracks } from './trackBuffers';
 
-export interface WorkerRequest {
-  url: string;
-}
-
 export interface LoadStats {
   /** Decoded OWT1 stream size. */
   rawBytes: number;

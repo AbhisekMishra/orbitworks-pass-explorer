@@ -2,15 +2,12 @@
  * Typed API access. Every response is validated against the shared zod contract, so a server/web
  * mismatch fails loudly at the boundary instead of as a confusing rendering bug.
  */
-import { API_PREFIX, ApiErrorSchema } from '@ow/shared';
+import { ApiErrorSchema } from '@ow/shared';
 import type { z } from 'zod';
 
-/** API origin: empty means same origin (dev proxy, nginx). Vercel sets the Railway origin. */
-export const API_BASE_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+import { apiUrl } from './url';
 
-/** Absolute URL of an API route (absolute so the decode worker can fetch it too). */
-export const apiUrl = (route: string): string =>
-  new URL(`${API_BASE_URL}${API_PREFIX}${route}`, globalThis.location.href).toString();
+export { API_BASE_URL, apiUrl } from './url';
 
 export class ApiRequestError extends Error {
   override name = 'ApiRequestError';

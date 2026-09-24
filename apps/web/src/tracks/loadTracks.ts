@@ -1,7 +1,11 @@
-/** Main-thread side of the decode worker: one worker per load, terminated when done. */
+/**
+ * Main-thread side of the decode worker: one worker per load, terminated when done. The worker
+ * starts fetching as soon as it runs and takes no input: it builds the tracks URL itself from
+ * build-time configuration, so no message can steer what it requests.
+ */
 import { ApiRequestError } from '../api/client';
 
-import type { LoadStats, WorkerRequest, WorkerResponse } from './protocol';
+import type { LoadStats, WorkerResponse } from './protocol';
 import type { LoadedTracks } from './trackBuffers';
 
 export interface TracksResult {
@@ -9,7 +13,7 @@ export interface TracksResult {
   stats: LoadStats;
 }
 
-export function loadTracks(url: string, signal?: AbortSignal): Promise<TracksResult> {
+export function loadTracks(signal?: AbortSignal): Promise<TracksResult> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./tracks.worker.ts', import.meta.url), {
       type: 'module',
@@ -34,6 +38,5 @@ export function loadTracks(url: string, signal?: AbortSignal): Promise<TracksRes
       finish();
       reject(new Error(event.message || 'The track decoder failed to start.'));
     });
-    worker.postMessage({ url } satisfies WorkerRequest);
   });
 }

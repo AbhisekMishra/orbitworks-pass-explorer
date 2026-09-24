@@ -2,18 +2,15 @@
  * Downloads and decodes the whole week of tracks off the main thread: the UI stays responsive
  * while ~600k vertices are decoded and turned into GPU buffers, which are then transferred (not
  * copied) back. Deliberately zod-free: this bundle is the codec plus a few functions.
- * The logic lives in fetchTracks.ts (unit-tested); this file only wires messages to it.
+ *
+ * The worker takes no input. It starts on creation and requests a URL built from build-time
+ * configuration only, so there is no message handler to abuse (no origin to verify, no URL a
+ * message could redirect). The logic lives in fetchTracks.ts (unit-tested).
  */
+import { TRACKS_BINARY_ROUTE, apiUrl } from '../api/url';
+
 import { fetchTracks } from './fetchTracks';
 
-// A dedicated worker only receives messages from the page that created it (event.origin is
-// always empty here), so there is no origin to verify; the payload shape is still checked.
-// eslint-disable-next-line sonarjs/post-message
-self.addEventListener('message', (event: MessageEvent<unknown>) => {
-  const { data } = event;
-  if (typeof data === 'object' && data !== null && 'url' in data && typeof data.url === 'string') {
-    void fetchTracks(data.url).then(({ response, transfer }) => {
-      self.postMessage(response, { transfer });
-    });
-  }
+void fetchTracks(apiUrl(TRACKS_BINARY_ROUTE)).then(({ response, transfer }) => {
+  self.postMessage(response, { transfer });
 });

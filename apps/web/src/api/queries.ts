@@ -7,7 +7,7 @@ import { queryOptions } from '@tanstack/react-query';
 
 import { loadTracks } from '../tracks/loadTracks';
 
-import { apiUrl, getJson } from './client';
+import { getJson } from './client';
 
 export const datasetQuery = queryOptions({
   queryKey: ['dataset'],
@@ -17,7 +17,7 @@ export const datasetQuery = queryOptions({
 
 export const tracksQuery = queryOptions({
   queryKey: ['tracks'],
-  queryFn: ({ signal }) => loadTracks(apiUrl('/tracks/binary'), signal),
+  queryFn: ({ signal }) => loadTracks(signal),
   // Immutable per deployment; the HTTP cache (ETag) covers reloads.
   staleTime: Infinity,
   gcTime: Infinity,
