@@ -12,6 +12,7 @@ export default tseslint.config(
   {
     ignores: [
       '**/dist/**',
+      '**/dist-e2e/**',
       '**/coverage/**',
       '**/node_modules/**',
       '**/playwright-report/**',
@@ -72,6 +73,7 @@ export default tseslint.config(
     files: [
       'apps/api/**/*.ts',
       'scripts/**/*.mjs',
+      'apps/*/scripts/**/*.mjs',
       '.claude/hooks/**/*.mjs',
       'tests/**/*.mjs',
       '*.{js,mjs}',
@@ -80,7 +82,12 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.node } },
   },
   {
-    files: ['scripts/**/*.mjs', '.claude/hooks/**/*.mjs', 'apps/api/src/scripts/**/*.ts'],
+    files: [
+      'scripts/**/*.mjs',
+      'apps/*/scripts/**/*.mjs',
+      '.claude/hooks/**/*.mjs',
+      'apps/api/src/scripts/**/*.ts',
+    ],
     rules: {
       'no-console': 'off',
       // CLI scripts intentionally spawn processes and touch paths derived from their inputs.

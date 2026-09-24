@@ -87,4 +87,5 @@ thresholds, skip tests, or use `--no-verify`. Fix the root cause.
 | Track hover tooltip                                          | nearest-vertex tests                              | `e2e/tooltip.spec.ts`    |
 | Accesses (pin, radius, dates, daylight, table, sync, CSV)    | `features/accesses/*.test.ts`                     | `e2e/accesses.spec.ts`   |
 | URL state / shareable links                                  | `state/url.test.ts`                               | `e2e/url-state.spec.ts`  |
-| Error and empty states                                       | component tests                                   | `e2e/resilience.spec.ts` |
+| Error and empty states, basemap fallback                     | component tests, `tracks/fetchTracks.test.ts`     | `e2e/resilience.spec.ts` |
+| Help dialog, first-run hint, keyboard (Space, ?)             | component + `hooks.test.tsx`                      | `e2e/onboarding.spec.ts` |

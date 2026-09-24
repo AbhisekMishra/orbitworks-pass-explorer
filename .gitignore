@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-e2e/
 coverage/
 *.tsbuildinfo
 .env
@@ -23,3 +24,6 @@ Thumbs.db
 !.vscode/extensions.json
 .idea/
 *.log
+
+# Claude Code runtime state
+.claude/scheduled_tasks.lock
