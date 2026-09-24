@@ -1,0 +1,68 @@
+import { defineConfig, devices } from '@playwright/test';
+
+/**
+ * E2E against production builds: the real API (apps/api/dist, real seeded week of data) and the
+ * web app built with `--mode e2e` (identical to production plus read-only test hooks), served by
+ * `vite preview`, which proxies /api to the API like nginx does in Docker.
+ *
+ * Prerequisites (CI and `pnpm verify` do these): `pnpm build` and `pnpm seed`.
+ */
+const API_PORT = 3100;
+const WEB_PORT = 4173;
+const CI = Boolean(process.env.CI);
+
+export default defineConfig({
+  testDir: './e2e',
+  globalSetup: './e2e/global-setup.ts',
+  timeout: 30_000,
+  expect: { timeout: 10_000 },
+  fullyParallel: true,
+  forbidOnly: CI,
+  retries: CI ? 1 : 0,
+  workers: CI ? 2 : 3,
+  reporter: CI ? [['github'], ['html', { open: 'never' }]] : [['list']],
+  use: {
+    baseURL: `http://127.0.0.1:${WEB_PORT}`,
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    viewport: { width: 1280, height: 800 },
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+        // WebGL without a GPU (CI runners): SwiftShader software rendering.
+        launchOptions: {
+          args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+        },
+      },
+    },
+  ],
+  webServer: [
+    {
+      command: 'node ../api/dist/server.js',
+      url: `http://127.0.0.1:${API_PORT}/readyz`,
+      reuseExistingServer: !CI,
+      timeout: 60_000,
+      env: {
+        NODE_ENV: 'production',
+        PORT: String(API_PORT),
+        HOST: '127.0.0.1',
+        LOG_LEVEL: 'warn',
+        // Parallel tests reload the app many times from one IP.
+        RATE_LIMIT_TRACKS_PER_MIN: '10000',
+        RATE_LIMIT_ACCESSES_PER_MIN: '10000',
+        RATE_LIMIT_GLOBAL_PER_MIN: '100000',
+      },
+    },
+    {
+      command: `pnpm exec vite preview --outDir dist-e2e --port ${WEB_PORT} --strictPort --host 127.0.0.1`,
+      url: `http://127.0.0.1:${WEB_PORT}`,
+      reuseExistingServer: !CI,
+      timeout: 60_000,
+      env: { API_PROXY_TARGET: `http://127.0.0.1:${API_PORT}` },
+    },
+  ],
+});

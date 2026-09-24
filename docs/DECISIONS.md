@@ -222,3 +222,68 @@ See [AI_USAGE.md](AI_USAGE.md) _(written in the documentation phase)_.
   validating; a content-negotiation bug that served 2 MB uncompressed; request-id sanitising that
   never ran.
 - **Design changes:** the removal of the R-tree (ADR-003) and opt-in paths (ADR-004).
+
+---
+
+## ADR-008: Web rendering — GPU time filter, time chunks, nothing on the hot path
+
+**Context.** The map must follow the timeline and the satellite toggles "quasi instantly". The
+week is 605k vertices (10 satellites × 60,487).
+
+**Decision.**
+
+1. **Decode off the main thread.** A Web Worker downloads OWT1, decodes it and builds the GPU
+   buffers, then transfers them without copying. The worker bundle is 2 KB gzip: the codec is
+   zod-free on purpose.
+2. **Time is a GPU uniform.** `TrackLayer` (a deck.gl `PathLayer` with per-vertex timestamps,
+   the same technique as `TripsLayer`) discards fragments outside the window. Moving the window
+   changes two uniforms: no re-upload and no re-tessellation.
+3. **12 h chunks.** Each satellite's buffers are split into 12 h chunks. These are views, not
+   copies, and each chunk is its own layer. Only chunks overlapping the window are `visible`, so
+   vertex work follows the window length instead of the whole week. A 6 h window draws 10–20
+   of about 150 chunks, roughly 7–15× fewer vertices. Hidden chunks get constant uniforms, so
+   deck.gl's diff skips them.
+4. **No React on the hot path.** The map controller subscribes to the Zustand store and pushes
+   new layer props synchronously; deck.gl batches the redraw into its next frame. Only the small
+   controls that display the window re-render.
+5. **Downloads start before the map code.** The entry point starts the dataset and track
+   requests, then lazily imports the app (MapLibre, deck.gl). The 0.5 MB of tracks downloads in
+   parallel with the vendor JavaScript instead of after it.
+6. **Geometry details.**
+   - **Antimeridian.** Tracks are split at the antimeridian, with an interpolated vertex on each
+     edge, so the flat map never draws a line across the world.
+   - **Relative time.** GPU timestamps are seconds since the dataset epoch; epoch seconds lose
+     ~2 minutes of precision in Float32.
+   - **2 km lift.** Tracks are drawn 2 km above the ground. The straight segments between samples
+     76 km apart would otherwise dip about 113 m below the globe surface and flicker.
+
+**Evidence.**
+
+- **Filtering.** Toggling satellites, presets, dragging and playing make zero API requests. The
+  Playwright suite asserts this.
+- **Software rendering.** In SwiftShader (the CI browser has no GPU), the full-week vertex load
+  made the page unresponsive: 9 of 17 E2E tests timed out. With chunking, all pass.
+- **Bundle.** App code is 17 KB gzip. Total JS is 638 KB (budget 750 KB), workers included:
+  MapLibre 296 KB, deck.gl 222 KB and React 66 KB.
+
+**MapLibre 6, served unbundled.**
+
+- **Why 6.x.** MapLibre up to 6.4.0 has a sanitizer-bypass advisory, GHSA-jrc7-96c5-q579. It
+  affects the attribution HTML that comes from the third-party style. It has no 5.x fix, so we use
+  6.x.
+- **deck.gl compatibility.** deck.gl 9.4's interleaved renderer still reads `map.transform`.
+  MapLibre 6 keeps that object on its camera, so `mapController.ts` exposes it under the old name.
+  It is a one-line, documented shim, and every E2E test exercises it.
+- **Unbundled delivery.** MapLibre 6 is three ES modules (main, shared, worker), and the worker
+  is found through a URL relative to the main module. Bundling breaks that URL. A separately
+  bundled worker also duplicates the shared module, about 145 KB gzip. We therefore serve
+  MapLibre's own files, unbundled, from a versioned `/vendor/maplibre-gl-<version>/` path. The
+  worker then shares the cached shared module: about 110 KB less JavaScript per visit.
+
+**Resilience.**
+
+- **Basemap outage.** If OpenFreeMap is unreachable, the map switches to a plain local style.
+  Tracks, tooltips and the timeline keep working, because deck.gl layers only attach once some
+  style has loaded.
+- **API errors.** They show a retry card; only transient errors (5xx, 429, network) are retried
+  automatically.

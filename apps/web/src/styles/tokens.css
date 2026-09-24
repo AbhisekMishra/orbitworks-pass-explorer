@@ -1,0 +1,50 @@
+/*
+ * Design tokens. One dark theme on purpose: the map is dark, so tracks and panels share one
+ * palette tuned for contrast against it (see map/colors.ts for the satellite palette).
+ */
+:root {
+  --color-bg: #060a13;
+  --color-space: #03050b;
+  --color-surface: rgb(12 18 33 / 90%);
+  --color-surface-solid: #0c1221;
+  --color-surface-raised: #141c30;
+  --color-surface-hover: #1a2440;
+  --color-border: rgb(148 163 184 / 14%);
+  --color-border-strong: rgb(148 163 184 / 28%);
+  --color-text: #e7ecf6;
+  --color-text-muted: #9aa8bf;
+  --color-text-faint: #66748c;
+  --color-accent: #38bdf8;
+  --color-accent-strong: #7dd3fc;
+  --color-accent-soft: rgb(56 189 248 / 14%);
+  --color-accent-border: rgb(56 189 248 / 55%);
+  --color-danger: #f87171;
+  --color-danger-soft: rgb(248 113 113 / 12%);
+  --color-day: #fcd34d;
+  --color-night: #a5b4fc;
+  --color-focus: #7dd3fc;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --shadow-panel: 0 10px 40px rgb(0 0 0 / 45%), 0 1px 0 rgb(255 255 255 / 4%) inset;
+  --shadow-pop: 0 12px 32px rgb(0 0 0 / 55%);
+  --blur-panel: blur(14px) saturate(140%);
+  --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --topbar-height: 52px;
+  --panel-width: 248px;
+  --gutter: 12px;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+}

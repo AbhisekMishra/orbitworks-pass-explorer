@@ -1,0 +1,6 @@
+/* Space behind the globe: the map canvas is transparent outside the planet. */
+.map {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 45%, #0d1630 0%, var(--color-space) 70%);
+}

@@ -1,0 +1,67 @@
+.card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: min(440px, calc(100% - 2 * var(--gutter)));
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: var(--blur-panel);
+  transform: translate(-50%, -50%);
+}
+
+.card[data-variant='error'] {
+  border-color: var(--color-danger);
+  background: var(--color-surface-solid);
+}
+
+.title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.detail {
+  margin: 2px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.spinner {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-accent-soft);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.retry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.retry:hover {
+  background: var(--color-danger);
+  color: var(--color-space);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
