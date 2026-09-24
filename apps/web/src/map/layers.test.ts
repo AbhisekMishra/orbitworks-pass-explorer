@@ -6,6 +6,7 @@ import { buildTrackBuffers } from '../tracks/trackBuffers';
 import { assignColors } from './colors';
 import {
   HEADS_LAYER_ID,
+  PASSES_LAYER_ID,
   buildLayers,
   hoverFromPick,
   renderChunksOf,
@@ -79,6 +80,67 @@ describe('buildLayers', () => {
     expect(propsOf(b, A0)).toMatchObject({ windowStartRelS: 0, windowEndRelS: 0 });
   });
 
+  it('draws pass portions over the tracks and makes the tracks recede while a pin is set', () => {
+    const passes = [
+      {
+        id: 'P1',
+        satellite: 'A',
+        startS: T0 + 10,
+        endS: T0 + 20,
+        path: [
+          [10, 1, 2000],
+          [10, 2, 2000],
+        ] as [number, number, number][],
+        color: [1, 2, 3] as const,
+      },
+      {
+        id: 'P2',
+        satellite: 'B',
+        startS: T0 + 5000,
+        endS: T0 + 5100,
+        path: [
+          [0, 0, 2000],
+          [1, 0, 2000],
+        ] as [number, number, number][],
+        color: [4, 5, 6] as const,
+      },
+    ];
+    const layers = buildLayers(input({ passes, pinActive: true, hoveredPassId: 'P2', beforeId: 'labels' }));
+    expect(layers.map((l) => l.id).slice(-2)).toEqual(['access-passes-outline', PASSES_LAYER_ID]);
+    const p = propsOf(layers, PASSES_LAYER_ID) as {
+      getWidth: (d: (typeof passes)[number]) => number;
+      beforeId: string;
+    };
+    expect(p.getWidth(passes[0]!)).toBeLessThan(p.getWidth(passes[1]!));
+    interface Colorer {
+      getColor: (d: (typeof passes)[number]) => number[];
+    }
+    // P1 is inside the timeline window: opaque. P2 is outside but hovered: opaque too.
+    const color = (propsOf(layers, PASSES_LAYER_ID) as unknown as Colorer).getColor;
+    expect(color(passes[0]!)[3]).toBe(255);
+    expect(color(passes[1]!)[3]).toBe(255);
+    const quiet = buildLayers(input({ passes }));
+    expect((propsOf(quiet, PASSES_LAYER_ID) as unknown as Colorer).getColor(passes[1]!)[3]).toBeLessThan(255);
+    const outline = (
+      propsOf(quiet, 'access-passes-outline') as unknown as {
+        getWidth: (d: (typeof passes)[number]) => number;
+      }
+    ).getWidth;
+    expect(outline(passes[1]!)).toBe(0);
+    expect(outline(passes[0]!)).toBeGreaterThan(0);
+    // Updates are keyed on the in-window set: moving the window within it changes nothing.
+    const triggers = (l: ReturnType<typeof buildLayers>) =>
+      (propsOf(l, PASSES_LAYER_ID).updateTriggers as { getColor: unknown[] }).getColor;
+    const shifted = buildLayers(input({ passes, timeWindow: { startS: T0 + 12, endS: T0 + 32 } }));
+    expect(triggers(shifted)).toEqual(triggers(quiet));
+    expect(p.beforeId).toBe('labels');
+    expect((propsOf(layers, A0).opacity as number) < 0.5).toBe(true);
+    // Without passes no access layers are created at all.
+    expect(buildLayers(input()).map((l) => l.id)).not.toContain(PASSES_LAYER_ID);
+    // A focused satellite still wins over the pin dimming.
+    expect(propsOf(buildLayers(input({ pinActive: true, focusedSatellite: 'A' })), A0).opacity).toBe(1);
+  });
+
   it('shows only the chunks that overlap the window', () => {
     const outside = buildLayers(input({ timeWindow: { startS: T0 + 3600, endS: T0 + 7200 } }));
     expect(propsOf(outside, A0)).toMatchObject({ visible: false });
@@ -129,10 +191,22 @@ describe('hoverFromPick', () => {
 
   it('resolves a track pick to the nearest instant, with its position and altitude', () => {
     const hover = hoverFromPick(pick({}), tracks, timeWindow);
-    expect(hover).toMatchObject({ satellite: 'A', x: 5, y: 6 });
-    expect(hover!.timeS).toBeCloseTo(T0 + 25, 3);
-    expect(hover!.lat).toBeCloseTo(2.5, 3);
-    expect(hover!.altKm).toBeCloseTo(500, 3);
+    expect(hover).toMatchObject({ kind: 'track', satellite: 'A', x: 5, y: 6 });
+    if (hover?.kind !== 'track') return;
+    expect(hover.timeS).toBeCloseTo(T0 + 25, 3);
+    expect(hover.lat).toBeCloseTo(2.5, 3);
+    expect(hover.altKm).toBeCloseTo(500, 3);
+  });
+
+  it('resolves a pass portion pick to that pass', () => {
+    const passPick = pick({
+      layerId: PASSES_LAYER_ID,
+      object: { id: 'P1', satellite: 'A', path: [], color: [1, 2, 3] },
+    });
+    expect(hoverFromPick(passPick, tracks, timeWindow)).toEqual({ kind: 'pass', passId: 'P1', x: 5, y: 6 });
+    expect(
+      hoverFromPick(pick({ layerId: PASSES_LAYER_ID, object: { id: 1 } }), tracks, timeWindow),
+    ).toBeNull();
   });
 
   it('resolves a satellite head pick', () => {

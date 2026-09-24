@@ -9,7 +9,8 @@ export type ShortcutAction =
   | { type: 'showAllSatellites' }
   | { type: 'nudgeWindow'; spans: number }
   | { type: 'toggleProjection' }
-  | { type: 'openHelp' };
+  | { type: 'openHelp' }
+  | { type: 'clearPin' };
 
 export interface KeyInput {
   key: string;
@@ -37,6 +38,14 @@ function digitIndex(code: string): number | null {
   return d === 0 ? 9 : d - 1;
 }
 
+/** Keys that mean the same thing wherever the focus is (outside text fields). */
+const SIMPLE_KEYS: Partial<Record<string, ShortcutAction>> = {
+  '?': { type: 'openHelp' },
+  a: { type: 'showAllSatellites' },
+  g: { type: 'toggleProjection' },
+  Escape: { type: 'clearPin' },
+};
+
 export function shortcutFor(e: KeyInput): ShortcutAction | null {
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   if (e.targetEditable || TYPING_TAGS.has(e.targetTag)) return null;
@@ -44,9 +53,8 @@ export function shortcutFor(e: KeyInput): ShortcutAction | null {
   const index = digitIndex(e.code);
   if (index !== null)
     return e.shiftKey ? { type: 'soloSatellite', index } : { type: 'toggleSatellite', index };
-  if (e.key === '?') return { type: 'openHelp' };
-  if (e.key === 'a' || e.key === 'A') return { type: 'showAllSatellites' };
-  if (e.key === 'g' || e.key === 'G') return { type: 'toggleProjection' };
+  const simple = SIMPLE_KEYS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  if (simple) return simple;
 
   if (OWN_KEYS_TAGS.has(e.targetTag)) return null;
   if (e.key === ' ') return { type: 'togglePlay' };

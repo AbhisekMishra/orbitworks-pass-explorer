@@ -44,8 +44,12 @@ export function distanceKm(a: LonLat, b: LonLat): number {
   return centralAngle(toVec(a[0], a[1]), toVec(b[0], b[1])) * EARTH_RADIUS_KM;
 }
 
-/** Wrap a longitude into [-180, 180). */
+/**
+ * Wrap a longitude into [-180, 180). Values already in range are returned as they are: the
+ * modular arithmetic would otherwise add float noise (54.377 → 54.37699999999995) to user input.
+ */
 export function normalizeLon(lon: number): number {
+  if (lon >= -180 && lon < 180) return lon;
   return ((((lon + 180) % 360) + 360) % 360) - 180;
 }
 

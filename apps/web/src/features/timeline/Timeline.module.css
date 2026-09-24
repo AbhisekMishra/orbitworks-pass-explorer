@@ -231,3 +231,40 @@
     display: none;
   }
 }
+
+/* Pass marks sit along the bottom edge of the track, above the window. */
+.passTicks {
+  position: absolute;
+  right: 0;
+  bottom: 3px;
+  left: 0;
+  z-index: 1;
+  height: 14px;
+  pointer-events: none;
+}
+
+.passTick {
+  position: absolute;
+  bottom: 0;
+  width: 3px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--sat-color);
+  transform: translateX(-50%);
+  pointer-events: auto;
+  transition: height var(--duration-fast);
+}
+
+.passTick::after {
+  content: '';
+  position: absolute;
+  inset: -4px -4px 0;
+}
+
+.passTick[data-hovered='true'],
+.passTick[aria-pressed='true'] {
+  height: 16px;
+  box-shadow: 0 0 0 1.5px var(--color-text);
+}

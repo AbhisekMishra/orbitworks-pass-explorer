@@ -3,6 +3,7 @@
  * props directly, so scrubbing the timeline or toggling satellites never re-renders React trees
  * beyond the small controls that display the values (CLAUDE.md "Web hot path").
  */
+import { RADIUS_KM } from '@ow/shared';
 import { useStore } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { createStore } from 'zustand/vanilla';
@@ -19,10 +20,13 @@ import {
   type TimeWindow,
 } from '../features/timeline/timelineMath';
 
+import { clampDays, passWindow } from '../features/accesses/accessWindow';
+
 import type { CameraState, Projection, UrlState } from './url';
 
-/** What the pointer is over on the map (for the tooltip). Times are epoch seconds. */
+/** A point of a track under the pointer (for the tooltip). Times are epoch seconds. */
 export interface TrackHover {
+  kind: 'track';
   satellite: string;
   timeS: number;
   lon: number;
@@ -31,6 +35,39 @@ export interface TrackHover {
   /** Pointer position in map-container pixels. */
   x: number;
   y: number;
+}
+
+/** A highlighted pass portion under the pointer on the map. */
+export interface PassHover {
+  kind: 'pass';
+  passId: string;
+  x: number;
+  y: number;
+}
+
+export type MapHover = TrackHover | PassHover;
+
+export interface LonLatPoint {
+  lon: number;
+  lat: number;
+}
+
+/** Parameters of the passes query (the accesses panel). */
+export interface AccessParams {
+  /** Where the user dropped the pin; null hides the accesses panel's results. */
+  pin: LonLatPoint | null;
+  radiusKm: number;
+  /** Whole UTC days, epoch seconds: [startS, endS) with endS exclusive. */
+  startS: number;
+  endS: number;
+  daylightOnly: boolean;
+}
+
+/** A pass as the timeline needs it (epoch seconds). */
+export interface PassSpan {
+  id: string;
+  startS: number;
+  endS: number;
 }
 
 export interface DatasetMeta {
@@ -52,8 +89,13 @@ export interface AppState {
   camera: CameraState | null;
   /** Satellite under the pointer in the side panel: emphasized on the map. */
   focusedSatellite: string | null;
-  hover: TrackHover | null;
+  hover: MapHover | null;
   helpOpen: boolean;
+  access: AccessParams;
+  /** Pass under the pointer in the table, on the map or on the timeline (three-way sync). */
+  hoveredPassId: string | null;
+  /** Pass the user clicked: framed on the timeline, highlighted everywhere. */
+  selectedPassId: string | null;
 }
 
 export interface AppActions {
@@ -78,8 +120,16 @@ export interface AppActions {
   toggleProjection: () => void;
   setCamera: (camera: CameraState) => void;
   setFocusedSatellite: (id: string | null) => void;
-  setHover: (hover: TrackHover | null) => void;
+  setHover: (hover: MapHover | null) => void;
   setHelpOpen: (open: boolean) => void;
+  setPin: (pin: LonLatPoint | null) => void;
+  setRadius: (radiusKm: number) => void;
+  /** Sets the query days; snapped to whole UTC days inside the dataset. */
+  setAccessDays: (startS: number, endS: number) => void;
+  setDaylightOnly: (daylightOnly: boolean) => void;
+  setHoveredPass: (id: string | null) => void;
+  /** Selects a pass and frames it on the timeline (pausing playback). */
+  focusPass: (pass: PassSpan) => void;
 }
 
 export type AppStore = AppState & AppActions;
@@ -96,7 +146,15 @@ const initialState: AppState = {
   focusedSatellite: null,
   hover: null,
   helpOpen: false,
+  access: { pin: null, radiusKm: RADIUS_KM.default, startS: 0, endS: 0, daylightOnly: false },
+  hoveredPassId: null,
+  selectedPassId: null,
 };
+
+/** Hovered/selected pass ids refer to the current result set: reset them when the query changes. */
+const NO_PASS_FOCUS = { hoveredPassId: null, selectedPassId: null } as const;
+
+const clampRadius = (km: number): number => Math.min(Math.max(Math.round(km), RADIUS_KM.min), RADIUS_KM.max);
 
 export function createAppStore() {
   return createStore<AppStore>()(
@@ -117,7 +175,14 @@ export function createAppStore() {
         initialize({ bounds, satellites }, url = {}) {
           const known = new Set(satellites);
           const visible = url.satellites?.filter((id) => known.has(id));
+          const days = url.accessDays ?? bounds;
           set({
+            access: {
+              pin: url.pin ?? null,
+              radiusKm: clampRadius(url.radiusKm ?? RADIUS_KM.default),
+              ...clampDays(days.startS, days.endS, bounds),
+              daylightOnly: url.daylightOnly ?? false,
+            },
             bounds,
             satellites,
             hidden: visible ? new Set(satellites.filter((id) => !visible.includes(id))) : new Set(),
@@ -128,16 +193,16 @@ export function createAppStore() {
         toggleSatellite(id) {
           const hidden = new Set(get().hidden);
           if (!hidden.delete(id)) hidden.add(id);
-          set({ hidden });
+          set({ hidden, ...NO_PASS_FOCUS });
         },
         soloSatellite(id) {
-          set({ hidden: new Set(get().satellites.filter((s) => s !== id)) });
+          set({ hidden: new Set(get().satellites.filter((s) => s !== id)), ...NO_PASS_FOCUS });
         },
         showAllSatellites() {
-          set({ hidden: new Set() });
+          set({ hidden: new Set(), ...NO_PASS_FOCUS });
         },
         hideAllSatellites() {
-          set({ hidden: new Set(get().satellites) });
+          set({ hidden: new Set(get().satellites), ...NO_PASS_FOCUS });
         },
 
         setWindow: setClampedWindow,
@@ -197,6 +262,32 @@ export function createAppStore() {
         },
         setHelpOpen(helpOpen) {
           set({ helpOpen });
+        },
+
+        setPin(pin) {
+          set({ access: { ...get().access, pin }, ...NO_PASS_FOCUS });
+        },
+        setRadius(radiusKm) {
+          set({ access: { ...get().access, radiusKm: clampRadius(radiusKm) }, ...NO_PASS_FOCUS });
+        },
+        setAccessDays(startS, endS) {
+          const { bounds, access } = get();
+          if (bounds) set({ access: { ...access, ...clampDays(startS, endS, bounds) }, ...NO_PASS_FOCUS });
+        },
+        setDaylightOnly(daylightOnly) {
+          set({ access: { ...get().access, daylightOnly }, ...NO_PASS_FOCUS });
+        },
+        setHoveredPass(hoveredPassId) {
+          set({ hoveredPassId });
+        },
+        focusPass({ id, startS, endS }) {
+          const { bounds } = get();
+          if (!bounds) return;
+          set({
+            selectedPassId: id,
+            playing: false,
+            timeWindow: clampWindow(passWindow(startS, endS), bounds),
+          });
         },
       };
     }),

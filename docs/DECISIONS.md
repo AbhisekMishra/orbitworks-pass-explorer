@@ -287,3 +287,56 @@ week is 605k vertices (10 satellites × 60,487).
   style has loaded.
 - **API errors.** They show a retry card; only transient errors (5xx, 429, network) are retried
   automatically.
+
+---
+
+## ADR-009: Accesses UI — one filter set, three synchronized views
+
+**Context.** Function 2 of the brief asks for passes over a clicked point: a user-chosen radius
+and date range, with the matching portions of track shown. The brief also asks for tables and
+the map to stay in sync.
+
+**Decision.**
+
+- **One set of filters.** The pass list follows the satellites selected in the left panel, so
+  the map and the list never disagree. The pin, radius, days and daylight filter live in the
+  store and in the shareable link.
+- **Satellites are filtered in the browser.** The API is always asked for every satellite, and the
+  selection is applied on the client, with the stats recomputed by the same shared function the
+  API uses (`computePassStats` in `@ow/shared`). A satellite toggle therefore costs no request,
+  which keeps the zero-network budget for toggles. Asking for all ten satellites costs little: a
+  week at the largest radius is a few hundred passes, tens of kilobytes compressed.
+- **Server computes, client draws.** The API returns exact pass times and metrics with no
+  geometry (ADR-004). The web app rebuilds each pass's track portion from the tracks it already
+  holds: one sample at each end, plus every sample in between.
+- **Three views of the same pass.** Every pass appears as a row in the table, grouped by UTC day;
+  as a highlighted track portion on the map; and as a mark on the timeline. Hovering any of them
+  highlights the other two, and clicking any of them selects the pass and frames it on the
+  timeline. Portions inside the timeline window are drawn at full strength; the others stay
+  faint, so the timeline also filters the map.
+- **The circle is a native MapLibre layer.** It is a geodesic circle drawn with MapLibre fill and
+  line layers, which drape on the globe. A flat deck.gl polygon of up to 2,500 km radius would
+  sit hundreds of kilometres below the curved surface and disappear. Circles that enclose a pole
+  are drawn as an outline only.
+- **Radius in plain terms.** The slider is logarithmic, so 10 km and 2,500 km are both easy to set.
+  It shows the equivalent elevation above the horizon at the edge, for a 500 km orbit.
+- **Requests.** Requests are debounced by 250 ms while a control moves, cached per request
+  (passes never go stale within a deployment), and aborted when superseded. The previous result
+  stays on screen, dimmed, while the next one loads.
+- **Export.** CSV (RFC 4180) is produced in the browser from the data already on screen. Cells
+  that start like a spreadsheet formula are prefixed with an apostrophe, so opening the file cannot run
+  anything.
+- **Rendering cost.** A hover re-renders only the two rows and two timeline marks whose state
+  flips: they are memoized components with boolean store selectors. The pass layers are
+  rebuilt only when the set of passes inside the timeline window changes, not on every frame of
+  playback. Dragging the radius redraws the circle without re-rendering the map layers.
+
+**Evidence.**
+
+- **Real data.** The E2E suite drops a pin on the UAE and finds the passes of the brief's
+  inspiration screenshot (06:58 YAM20, 10:07 YAM25 on 1 March).
+- **Sync and export.** It checks the three-way sync (table, timeline and map hover), focusing a
+  pass, dragging the pin, the filters and their link restoration, the CSV file, and that a
+  satellite toggle makes no request.
+- **Edge cases.** It pins next to the antimeridian (one continuous circle) and near a pole
+  (outline only), and recovers from a failed request with Retry.

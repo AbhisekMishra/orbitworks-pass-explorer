@@ -23,6 +23,7 @@ describe('shortcutFor', () => {
     [key({ key: 'a' }), { type: 'showAllSatellites' }],
     [key({ key: 'G', shiftKey: true }), { type: 'toggleProjection' }],
     [key({ key: '?', shiftKey: true }), { type: 'openHelp' }],
+    [key({ key: 'Escape', targetTag: 'button' }), { type: 'clearPin' }],
     [key({ key: 'ArrowRight' }), { type: 'nudgeWindow', spans: NUDGE_SPANS }],
     [key({ key: 'ArrowLeft', shiftKey: true }), { type: 'nudgeWindow', spans: -1 }],
   ])('maps %o', (input, action) => {

@@ -1,8 +1,14 @@
-import { capBoundingBoxes, normalizeLon, type AccessesQuery, type AccessesResponse } from '@ow/shared';
+import {
+  capBoundingBoxes,
+  normalizeLon,
+  type AccessesQuery,
+  type AccessesResponse,
+  computePassStats,
+} from '@ow/shared';
 
 import type { Database } from '../db/database.js';
 import type { TrackGeometry } from '../domain/geometry.js';
-import { computePasses, computeStats } from '../domain/passes.js';
+import { computePasses } from '../domain/passes.js';
 import { isoSeconds as iso } from '../lib/time.js';
 
 import { resolveSatellites, type DatasetInfo } from './dataset.js';
@@ -64,6 +70,6 @@ export async function findAccesses(
       includePath: q.includePath,
     },
     passes,
-    stats: computeStats(passes, satellites),
+    stats: computePassStats(passes, satellites),
   };
 }

@@ -115,7 +115,16 @@ describe('view and UI state', () => {
     expect(s().projection).toBe('globe');
     s().setCamera({ lat: 10, lon: 20, zoom: 2 });
     s().setFocusedSatellite('YAM20');
-    const hover = { satellite: 'YAM20', timeS: T0, lon: 0, lat: 0, altKm: 500, x: 1, y: 2 };
+    const hover = {
+      kind: 'track' as const,
+      satellite: 'YAM20',
+      timeS: T0,
+      lon: 0,
+      lat: 0,
+      altKm: 500,
+      x: 1,
+      y: 2,
+    };
     s().setHover(hover);
     s().setHelpOpen(true);
     expect(s()).toMatchObject({
@@ -124,5 +133,74 @@ describe('view and UI state', () => {
       hover,
       helpOpen: true,
     });
+  });
+});
+
+describe('accesses', () => {
+  const DAY = 86_400;
+
+  it('defaults to the whole dataset, 400 km, no pin', () => {
+    expect(s().access).toEqual({
+      pin: null,
+      radiusKm: 400,
+      startS: WEEK.startS,
+      endS: WEEK.endS,
+      daylightOnly: false,
+    });
+  });
+
+  it('restores link state, clamping radius and days', () => {
+    s().initialize(
+      { bounds: WEEK, satellites: SATS },
+      {
+        pin: { lat: 1, lon: 2 },
+        radiusKm: 5000,
+        accessDays: { startS: T0 - DAY, endS: T0 + 2 * DAY },
+        daylightOnly: true,
+      },
+    );
+    expect(s().access).toEqual({
+      pin: { lat: 1, lon: 2 },
+      radiusKm: 2500,
+      startS: T0,
+      endS: T0 + 2 * DAY,
+      daylightOnly: true,
+    });
+  });
+
+  it('sets the pin (clearing pass selection), radius, days and the daylight filter', () => {
+    s().setHoveredPass('p1');
+    s().focusPass({ id: 'p1', startS: T0 + DAY, endS: T0 + DAY + 100 });
+    s().setPin({ lat: 10, lon: 20 });
+    expect(s()).toMatchObject({
+      access: { pin: { lat: 10, lon: 20 } },
+      hoveredPassId: null,
+      selectedPassId: null,
+    });
+    s().setRadius(3.7);
+    expect(s().access.radiusKm).toBe(10);
+    s().setAccessDays(T0 + 2 * DAY + 5, T0 + 3 * DAY);
+    expect(s().access).toMatchObject({ startS: T0 + 2 * DAY, endS: T0 + 3 * DAY });
+    s().setDaylightOnly(true);
+    expect(s().access.daylightOnly).toBe(true);
+    s().setPin(null);
+    expect(s().access.pin).toBeNull();
+  });
+
+  it('focuses a pass: selects it and frames it on the timeline, pausing playback', () => {
+    s().setPlaying(true);
+    s().focusPass({ id: 'p1', startS: T0 + DAY, endS: T0 + DAY + 100 });
+    expect(s()).toMatchObject({
+      selectedPassId: 'p1',
+      playing: false,
+      timeWindow: { startS: T0 + DAY - 600, endS: T0 + DAY + 700 },
+    });
+  });
+
+  it('ignores day and focus changes before the dataset is known', () => {
+    const fresh = createAppStore();
+    fresh.getState().setAccessDays(1, 2);
+    fresh.getState().focusPass({ id: 'x', startS: 1, endS: 2 });
+    expect(fresh.getState()).toMatchObject({ selectedPassId: null, access: { startS: 0, endS: 0 } });
   });
 });

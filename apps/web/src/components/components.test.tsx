@@ -50,6 +50,7 @@ describe('TopBar', () => {
 
 describe('TrackTooltip', () => {
   const hover = {
+    kind: 'track' as const,
     satellite: 'YAM20',
     timeS: T0 + 6 * 3600 + 58 * 60,
     lon: 54.37,
@@ -84,6 +85,42 @@ describe('TrackTooltip', () => {
     const tip = screen.getByTestId('track-tooltip');
     expect(tip).toHaveTextContent('Dark');
     expect(tip.style.transform).toContain('calc(-100%');
+  });
+});
+
+describe('TrackTooltip for a pass', () => {
+  const pass = {
+    id: 'P1',
+    satellite: 'YAM20',
+    start: '2027-03-01T06:58:16Z',
+    end: '2027-03-01T06:59:58Z',
+    durationS: 102,
+    tca: '2027-03-01T06:59:07Z',
+    minDistanceKm: 161.1,
+    maxElevationDeg: 70.7,
+    sunElevationDeg: 50,
+    daylight: true,
+    direction: 'descending' as const,
+    localSolarTimeH: 10.61,
+    altitudeKm: 496.7,
+  };
+
+  it('summarizes the hovered pass', () => {
+    appStore.getState().setHover({ kind: 'pass', passId: 'P1', x: 10, y: 20 });
+    render(<TrackTooltip colors={COLORS} passes={[pass]} />);
+    const tip = screen.getByTestId('pass-tooltip');
+    expect(tip).toHaveTextContent('YAM20 pass');
+    expect(tip).toHaveTextContent('06:58:16–06:59:58 UTC');
+    expect(tip).toHaveTextContent('1 min 42 s');
+    expect(tip).toHaveTextContent('71°');
+    expect(tip).toHaveTextContent('161 km at 06:59:07');
+    expect(tip).toHaveTextContent('Sunlit');
+  });
+
+  it('renders nothing for a pass that is no longer listed', () => {
+    appStore.getState().setHover({ kind: 'pass', passId: 'gone', x: 10, y: 20 });
+    const { container } = render(<TrackTooltip colors={COLORS} passes={[pass]} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });
 

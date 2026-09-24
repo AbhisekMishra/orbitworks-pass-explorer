@@ -78,6 +78,10 @@ describe('normalizeLon / normalizeHours', () => {
     expect(normalizeLon(input)).toBeCloseTo(expected, 9);
   });
 
+  it('returns in-range longitudes exactly (no float noise from the wrapping arithmetic)', () => {
+    for (const lon of [54.377, -122.4194, 179.99999, -180, 0.1]) expect(normalizeLon(lon)).toBe(lon);
+  });
+
   it.each([
     [-1.5, 22.5],
     [25.5, 1.5],

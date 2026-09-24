@@ -1,6 +1,7 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-import { useEffect, useRef } from 'react';
+import type { Pass } from '@ow/shared';
+import { memo, useEffect, useRef } from 'react';
 
 import type { LoadedTracks } from '../tracks/trackBuffers';
 
@@ -11,10 +12,13 @@ import styles from './MapView.module.css';
 interface Props {
   tracks: LoadedTracks | null;
   colors: ReadonlyMap<string, SatelliteColor>;
+  /** Passes of the accesses query, drawn as highlighted track portions. */
+  passes: readonly Pass[] | undefined;
 }
 
 /** Mounts the map once; data changes are pushed to the controller, never re-creating the map. */
-export function MapView({ tracks, colors }: Readonly<Props>) {
+/** Memoized: re-rendering never touches the map, but it avoids needless effect checks. */
+export const MapView = memo(function MapView({ tracks, colors, passes }: Readonly<Props>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<MapController | null>(null);
   const tracksRef = useRef<LoadedTracks | null>(tracks);
@@ -43,5 +47,9 @@ export function MapView({ tracks, colors }: Readonly<Props>) {
     controllerRef.current?.setData(tracks, colors);
   }, [tracks, colors]);
 
+  useEffect(() => {
+    controllerRef.current?.setPasses(passes);
+  }, [passes]);
+
   return <div ref={containerRef} className={styles.map} data-testid="map" />;
-}
+});

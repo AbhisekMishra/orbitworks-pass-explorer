@@ -1,10 +1,8 @@
-import { MS_PER_SECOND, type Dataset } from '@ow/shared';
+import type { Dataset } from '@ow/shared';
 
 import type { DatasetMeta } from '../state/store';
 
-import { formatDay } from './time';
-
-const toEpochS = (iso: string): number => Date.parse(iso) / MS_PER_SECOND;
+import { formatDay, toEpochS } from './time';
 
 /** Store metadata from the /dataset response: span in epoch seconds, satellites in API order. */
 export const datasetMeta = (dataset: Dataset): DatasetMeta => ({

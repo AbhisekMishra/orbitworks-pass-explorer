@@ -1,5 +1,5 @@
 import type { SatelliteSummary } from '@ow/shared';
-import { useState, type CSSProperties } from 'react';
+import { memo, useState, type CSSProperties } from 'react';
 
 import { ChevronIcon } from '../../components/icons';
 import type { SatelliteColor } from '../../map/colors';
@@ -15,7 +15,8 @@ interface Props {
 /** Keyboard digit for the first ten satellites: 1…9, then 0. */
 const shortcutDigit = (index: number): string | null => (index < 10 ? String((index + 1) % 10) : null);
 
-export function SatellitePanel({ satellites, colors }: Readonly<Props>) {
+/** Memoized: App re-renders while the accesses controls move; this panel does not need to. */
+export const SatellitePanel = memo(function SatellitePanel({ satellites, colors }: Readonly<Props>) {
   const hidden = useAppStore((s) => s.hidden);
   const toggle = useAppStore((s) => s.toggleSatellite);
   const solo = useAppStore((s) => s.soloSatellite);
@@ -118,4 +119,4 @@ export function SatellitePanel({ satellites, colors }: Readonly<Props>) {
       )}
     </section>
   );
-}
+});

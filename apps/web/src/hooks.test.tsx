@@ -44,6 +44,9 @@ describe('useShortcuts', () => {
     const space = press({ key: ' ' });
     expect(space.defaultPrevented).toBe(true);
     expect(state().playing).toBe(true);
+    state().setPin({ lat: 1, lon: 2 });
+    press({ key: 'Escape' });
+    expect(state().access.pin).toBeNull();
     press({ key: '?' });
     expect(state().helpOpen).toBe(true);
   });
@@ -101,6 +104,23 @@ describe('useUrlSync', () => {
     // Unchanged URL: no redundant history write.
     expect(replace.mock.calls).toHaveLength(writes);
     window.history.replaceState(null, '', '/');
+  });
+
+  it('writes the accesses pin and filters, and drops them with the pin', () => {
+    vi.useFakeTimers();
+    renderHook(useUrlSync);
+    act(() => {
+      state().setPin({ lat: 24.4539, lon: 54.3773 });
+      state().setDaylightOnly(true);
+      vi.advanceTimersByTime(URL_WRITE_DELAY_MS);
+    });
+    // Default days (the whole dataset, snapped to UTC days) are not written.
+    expect(window.location.search).toBe('?pin=24.454,54.377&daylight=1');
+    act(() => {
+      state().setPin(null);
+      vi.advanceTimersByTime(URL_WRITE_DELAY_MS);
+    });
+    expect(window.location.search).toBe('');
   });
 
   it('has nothing to write before the dataset is known', () => {

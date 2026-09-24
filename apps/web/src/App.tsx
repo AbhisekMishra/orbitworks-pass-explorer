@@ -7,6 +7,8 @@ import { FirstRunHint } from './components/FirstRunHint';
 import { HelpDialog } from './components/HelpDialog';
 import { ErrorCard, LoadingCard } from './components/StatusCard';
 import { TopBar } from './components/TopBar';
+import { AccessPanel } from './features/accesses/AccessPanel';
+import { useAccesses } from './features/accesses/useAccesses';
 import { SatellitePanel } from './features/satellites/SatellitePanel';
 import { Timeline } from './features/timeline/Timeline';
 import { TrackTooltip } from './features/tooltip/TrackTooltip';
@@ -21,6 +23,8 @@ import { useUrlSync } from './state/useUrlSync';
 export function App() {
   const dataset = useQuery(datasetQuery);
   const tracks = useQuery(tracksQuery);
+
+  const accesses = useAccesses();
 
   useShortcuts();
   useUrlSync();
@@ -44,9 +48,10 @@ export function App() {
     <div className={styles.app}>
       <TopBar summary={dataset.data ? summarizeDataset(dataset.data) : null} />
       <main className={styles.stage}>
-        <MapView tracks={tracks.data?.tracks ?? null} colors={colors} />
+        <MapView tracks={tracks.data?.tracks ?? null} colors={colors} passes={accesses.passes} />
         {satellites && <SatellitePanel satellites={satellites} colors={colors} />}
-        <TrackTooltip colors={colors} />
+        {satellites && <AccessPanel colors={colors} accesses={accesses} />}
+        <TrackTooltip colors={colors} passes={accesses.passes} />
         {failed ? (
           <ErrorCard title="Could not load the satellite data" message={failed.message} onRetry={retry} />
         ) : (
@@ -59,7 +64,7 @@ export function App() {
         )}
         {tracks.data && <FirstRunHint />}
       </main>
-      <Timeline />
+      <Timeline colors={colors} passes={accesses.passes} />
       <HelpDialog stats={tracks.data?.stats ?? null} />
     </div>
   );

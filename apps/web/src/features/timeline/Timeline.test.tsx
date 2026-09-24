@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { appStore } from '../../state/store';
-import { H, T0, WEEK, resetStore } from '../../testing/fixtures';
+import { COLORS, H, T0, WEEK, resetStore } from '../../testing/fixtures';
 
 import { Timeline } from './Timeline';
 
@@ -41,12 +41,12 @@ const state = () => appStore.getState();
 describe('Timeline', () => {
   it('renders a placeholder until the dataset is known', () => {
     resetStore({ initialized: false });
-    render(<Timeline />);
+    render(<Timeline colors={COLORS} />);
     expect(screen.queryByRole('slider')).not.toBeInTheDocument();
   });
 
   it('shows the window as UTC inputs, a duration and the active preset', () => {
-    render(<Timeline />);
+    render(<Timeline colors={COLORS} />);
     expect(screen.getByLabelText('Window start (UTC)')).toHaveValue('2027-03-01T00:00');
     expect(screen.getByLabelText('Window end (UTC)')).toHaveValue('2027-03-01T06:00');
     expect(screen.getByTestId('window-duration')).toHaveTextContent('6 h');
@@ -58,7 +58,7 @@ describe('Timeline', () => {
   });
 
   it('applies presets', async () => {
-    render(<Timeline />);
+    render(<Timeline colors={COLORS} />);
     await userEvent.click(screen.getByRole('button', { name: '1 d' }));
     expect(state().timeWindow).toEqual({ startS: T0, endS: T0 + 24 * H });
     await userEvent.click(screen.getByRole('button', { name: 'All' }));
@@ -66,7 +66,7 @@ describe('Timeline', () => {
   });
 
   it('edits the window edges from the UTC inputs, ignoring incomplete values', () => {
-    render(<Timeline />);
+    render(<Timeline colors={COLORS} />);
     fireEvent.change(screen.getByLabelText('Window end (UTC)'), { target: { value: '2027-03-02T12:00' } });
     expect(state().timeWindow).toEqual({ startS: T0, endS: T0 + 36 * H });
     fireEvent.change(screen.getByLabelText('Window start (UTC)'), { target: { value: '2027-03-01T12:00' } });
@@ -76,7 +76,7 @@ describe('Timeline', () => {
   });
 
   it('keeps the minimum span and the dataset bounds when typed times cross or overflow', () => {
-    render(<Timeline />);
+    render(<Timeline colors={COLORS} />);
     fireEvent.change(screen.getByLabelText('Window start (UTC)'), { target: { value: '2027-03-01T09:00' } });
     expect(state().timeWindow.endS - state().timeWindow.startS).toBe(10 * 60); // MIN_WINDOW_S
     fireEvent.change(screen.getByLabelText('Window end (UTC)'), { target: { value: '2027-04-01T00:00' } });
@@ -84,7 +84,7 @@ describe('Timeline', () => {
   });
 
   it('plays, pauses and changes speed', async () => {
-    render(<Timeline />);
+    render(<Timeline colors={COLORS} />);
     await userEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(state().playing).toBe(true);
     await userEvent.selectOptions(screen.getByLabelText('Playback speed'), '3600');
@@ -94,7 +94,7 @@ describe('Timeline', () => {
   });
 
   it('jumps to a clicked time and drags the window body', () => {
-    render(<Timeline />);
+    render(<Timeline colors={COLORS} />);
     const track = screen.getByTestId('timeline-track');
     const middle = T0 + 3.5 * 24 * H;
     fireEvent.pointerDown(track, { button: 0, clientX: xAt(middle), pointerId: 1 });
@@ -107,7 +107,7 @@ describe('Timeline', () => {
   });
 
   it('resizes from either handle', () => {
-    render(<Timeline />);
+    render(<Timeline colors={COLORS} />);
     const track = screen.getByTestId('timeline-track');
     fireEvent.pointerDown(screen.getByTestId('timeline-handle-end'), {
       button: 0,
@@ -130,12 +130,41 @@ describe('Timeline', () => {
   });
 
   it('pauses playback when the user drags, and ignores non-primary buttons', () => {
-    render(<Timeline />);
+    render(<Timeline colors={COLORS} />);
     state().setPlaying(true);
     const windowEl = screen.getByTestId('timeline-window');
     fireEvent.pointerDown(windowEl, { button: 2, clientX: xAt(T0 + H), pointerId: 4 });
     expect(state().playing).toBe(true);
     fireEvent.pointerDown(windowEl, { button: 0, clientX: xAt(T0 + H), pointerId: 4 });
     expect(state().playing).toBe(false);
+  });
+
+  it('marks passes; hovering and clicking a mark syncs with the table and frames the pass', () => {
+    const pass = {
+      id: 'P1',
+      satellite: 'YAM20',
+      start: '2027-03-01T06:58:16Z',
+      end: '2027-03-01T06:59:58Z',
+      durationS: 102,
+      tca: '2027-03-01T06:59:07Z',
+      minDistanceKm: 161.1,
+      maxElevationDeg: 70.7,
+      sunElevationDeg: 50,
+      daylight: true,
+      direction: 'descending' as const,
+      localSolarTimeH: 10.61,
+      altitudeKm: 496.7,
+    };
+    render(<Timeline colors={COLORS} passes={[pass]} />);
+    const mark = screen.getByRole('button', { name: 'YAM20 pass at 06:58 UTC on 2027-03-01' });
+    fireEvent.pointerDown(mark, { button: 0, pointerId: 9 }); // must not start a window drag
+    fireEvent.mouseEnter(mark);
+    expect(state().hoveredPassId).toBe('P1');
+    expect(mark).toHaveAttribute('data-hovered', 'true');
+    fireEvent.click(mark);
+    expect(state().selectedPassId).toBe('P1');
+    expect(state().timeWindow.startS).toBeLessThan(T0 + 6 * H + 58 * 60);
+    fireEvent.mouseLeave(mark);
+    expect(state().hoveredPassId).toBeNull();
   });
 });
