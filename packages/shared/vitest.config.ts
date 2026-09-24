@@ -4,6 +4,7 @@ export default defineConfig({
   resolve: { conditions: ['@ow/source'] },
   test: {
     include: ['src/**/*.test.ts'],
+    setupFiles: ['./vitest.setup.ts'],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
