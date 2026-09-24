@@ -1,0 +1,23 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# Generated DuckDB database (built from data/*.json.gz by `pnpm seed`)
+*.duckdb
+*.duckdb.wal
+.duckdb/
+
+# Playwright
+test-results/
+playwright-report/
+
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.log

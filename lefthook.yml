@@ -1,0 +1,27 @@
+# Git hooks (cross-platform). Installed automatically by `pnpm install` (scripts/prepare.mjs).
+# Bypassing with --no-verify is blocked for Claude by .claude/hooks/guard-bash.mjs and caught by CI anyway.
+
+pre-commit:
+  parallel: true
+  commands:
+    prettier:
+      glob: '*.{ts,tsx,js,mjs,json,md,css,yml,yaml}'
+      run: pnpm exec prettier --check {staged_files}
+    eslint:
+      glob: '*.{ts,tsx,js,mjs}'
+      run: pnpm exec eslint --max-warnings=0 {staged_files}
+    stylelint:
+      glob: '*.css'
+      run: pnpm exec stylelint {staged_files}
+    secrets:
+      run: pnpm exec secretlint {staged_files}
+
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm exec commitlint --edit {1}
+
+pre-push:
+  commands:
+    full-gate:
+      run: node scripts/verify.mjs

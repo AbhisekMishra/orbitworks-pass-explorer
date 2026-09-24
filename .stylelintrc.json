@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/stylelintrc",
+  "extends": ["stylelint-config-standard", "stylelint-config-css-modules"],
+  "ignoreFiles": ["**/dist/**", "**/coverage/**", "**/node_modules/**", "**/playwright-report/**"],
+  "rules": {
+    "selector-class-pattern": [
+      "^[a-z][a-zA-Z0-9]*$",
+      { "message": "Use camelCase class names (CSS Modules are consumed as styles.camelCase)" }
+    ],
+    "color-named": "never",
+    "declaration-no-important": true,
+    "max-nesting-depth": 3,
+    "custom-property-pattern": "^[a-z][a-z0-9-]*$"
+  }
+}
