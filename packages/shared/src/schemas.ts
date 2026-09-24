@@ -93,36 +93,31 @@ function checkWindow(q: TimeWindow, ctx: z.RefinementCtx, maxSpanMs: number, spa
 // ---------------------------------------------------------------------------------------------
 // Requests
 
-export const TRACK_FORMATS = ['geojson', 'binary'] as const;
+const trackFilter = {
+  satellites: SatelliteListSchema.optional(),
+  start: UtcInstantSchema.optional(),
+  end: UtcInstantSchema.optional(),
+};
 
-export const TracksQuerySchema = z
-  .object({
-    satellites: SatelliteListSchema.optional(),
-    start: UtcInstantSchema.optional(),
-    end: UtcInstantSchema.optional(),
-    format: z.enum(TRACK_FORMATS).default('geojson'),
-  })
-  .superRefine((q, ctx) => {
-    if (q.format === 'geojson') {
-      if (q.start === undefined || q.end === undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['start'],
-          message: `GeoJSON requires "start" and "end" (≤ ${MAX_GEOJSON_SPAN_HOURS} h); use format=binary for the full dataset`,
-        });
-        return;
-      }
-      checkWindow(
-        q,
-        ctx,
-        MAX_GEOJSON_SPAN_HOURS * MS_PER_HOUR,
-        `${MAX_GEOJSON_SPAN_HOURS} hours for GeoJSON`,
-      );
-    } else {
-      checkWindow(q, ctx, MAX_QUERY_SPAN_DAYS * MS_PER_DAY, `${MAX_QUERY_SPAN_DAYS} days`);
-    }
-  });
-export type TracksQuery = z.output<typeof TracksQuerySchema>;
+/** GET /tracks/binary — OWT1 stream; everything optional (no filter = the whole dataset). */
+export const TracksBinaryQuerySchema = z.object(trackFilter).superRefine((q, ctx) => {
+  checkWindow(q, ctx, MAX_QUERY_SPAN_DAYS * MS_PER_DAY, `${MAX_QUERY_SPAN_DAYS} days`);
+});
+export type TracksBinaryQuery = z.output<typeof TracksBinaryQuerySchema>;
+
+/** GET /tracks — GeoJSON; a bounded window is required (see MAX_GEOJSON_SPAN_HOURS). */
+export const TracksGeoJsonQuerySchema = z.object(trackFilter).superRefine((q, ctx) => {
+  if (q.start === undefined || q.end === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['start'],
+      message: `GeoJSON requires "start" and "end" (≤ ${MAX_GEOJSON_SPAN_HOURS} h); use /tracks/binary for the full dataset`,
+    });
+    return;
+  }
+  checkWindow(q, ctx, MAX_GEOJSON_SPAN_HOURS * MS_PER_HOUR, `${MAX_GEOJSON_SPAN_HOURS} hours for GeoJSON`);
+});
+export type TracksGeoJsonQuery = z.output<typeof TracksGeoJsonQuerySchema>;
 
 export const AccessesQuerySchema = z
   .object({
@@ -133,6 +128,11 @@ export const AccessesQuerySchema = z
     end: UtcInstantSchema.optional(),
     satellites: SatelliteListSchema.optional(),
     daylightOnly: z.stringbool().default(false),
+    /**
+     * Include each pass's clipped ground track. Off by default: paths are ~90 % of the response,
+     * and the web app already holds every track (it rebuilds paths from the binary stream).
+     */
+    includePath: z.stringbool().default(false),
   })
   .superRefine((q, ctx) => {
     checkWindow(q, ctx, MAX_QUERY_SPAN_DAYS * MS_PER_DAY, `${MAX_QUERY_SPAN_DAYS} days`);
@@ -202,8 +202,11 @@ export const PassSchema = z.object({
   /** Mean local solar time at TCA, hours [0, 24). */
   localSolarTimeH: z.number().min(0).lt(24),
   altitudeKm: z.number(),
-  /** Portion of the ground track inside the circle, [lon, lat] with continuous longitudes. */
-  path: z.array(LonLat),
+  /**
+   * Portion of the ground track inside the circle, [lon, lat] with continuous longitudes.
+   * Only present with `includePath=true`.
+   */
+  path: z.array(LonLat).optional(),
 });
 export type Pass = z.infer<typeof PassSchema>;
 
@@ -227,6 +230,7 @@ export const AccessesResponseSchema = z.object({
     end: IsoInstant,
     satellites: z.array(SatelliteIdSchema),
     daylightOnly: z.boolean(),
+    includePath: z.boolean(),
   }),
   passes: z.array(PassSchema),
   stats: AccessStatsSchema,

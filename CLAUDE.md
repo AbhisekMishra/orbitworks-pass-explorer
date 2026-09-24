@@ -6,14 +6,14 @@ criterion**, followed by a professional look and self-explanatory UX.
 
 ## Stack & layout
 
-| Path              | What                                                                                                                 |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `packages/shared` | `@ow/shared`: zod API contract + types, spherical geo math, solar position, binary track codec. Pure, no I/O.        |
-| `apps/api`        | `@ow/api`: Fastify 5 + DuckDB (`@duckdb/node-api`, spatial extension). REST under `/api/v1`, OpenAPI at `/api/docs`. |
-| `apps/web`        | `@ow/web`: React 19 + Vite, MapLibre GL (OpenFreeMap vector tiles) + deck.gl, Zustand, TanStack Query, CSS Modules.  |
-| `data/`           | Immutable input dataset (gzipped GeoJSON). Never edit.                                                               |
-| `.claude/`        | Harness: hooks (guardrails), review agents, commands. Changes go through `/review` + `tests/harness`.                |
-| `tests/harness`   | Unit and end-to-end tests of the harness guardrails.                                                                 |
+| Path              | What                                                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared` | `@ow/shared`: zod API contract + types, spherical geo math, solar position, binary track codec. Pure, no I/O.                                                       |
+| `apps/api`        | `@ow/api`: Fastify 5 + DuckDB (`@duckdb/node-api`; numeric candidate filter, geometry in typed arrays — see ADR-003). REST under `/api/v1`, OpenAPI at `/api/docs`. |
+| `apps/web`        | `@ow/web`: React 19 + Vite, MapLibre GL (OpenFreeMap vector tiles) + deck.gl, Zustand, TanStack Query, CSS Modules.                                                 |
+| `data/`           | Immutable input dataset (gzipped GeoJSON). Never edit.                                                                                                              |
+| `.claude/`        | Harness: hooks (guardrails), review agents, commands. Changes go through `/review` + `tests/harness`.                                                               |
+| `tests/harness`   | Unit and end-to-end tests of the harness guardrails.                                                                                                                |
 
 Workspace packages consume `@ow/shared` **source** through the `@ow/source` export condition (dev and
 tests) and `dist/` in production.
@@ -22,7 +22,7 @@ tests) and `dist/` in production.
 
 ```bash
 pnpm install          # also installs git hooks (lefthook)
-pnpm seed             # build apps/api/data/tracks.duckdb from data/*.json.gz
+pnpm seed             # build apps/api/data/ (tracks.duckdb + precompressed track artifacts) from data/*.json.gz
 pnpm dev              # API :3000 + web :5173 (proxy /api)
 pnpm verify           # FULL gate: format, lint, secrets, types, tests+coverage, build, size, e2e
 pnpm verify:fast      # same without build/size/e2e

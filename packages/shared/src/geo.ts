@@ -92,7 +92,7 @@ export function geodesicCircle(lon: number, lat: number, radiusKm: number, steps
 /**
  * Lon/lat bounding boxes that fully contain the spherical cap of `radiusKm` around (lon, lat).
  * Returns one box, or two when the cap straddles the antimeridian. A cap containing a pole spans
- * all longitudes. Used as the R-tree pre-filter; exact distances are computed afterwards.
+ * all longitudes. Used as the API's bounding-box pre-filter; exact distances are computed afterwards.
  */
 export function capBoundingBoxes(lon: number, lat: number, radiusKm: number): BBox[] {
   const d = (radiusKm / EARTH_RADIUS_KM) * RAD;
