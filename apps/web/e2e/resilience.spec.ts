@@ -1,4 +1,13 @@
-import { expect, hooks, openApp, test, visibleSatellites, waitForTracks } from './fixtures';
+import {
+  MIN_TRACK_PIXELS,
+  colouredPixels,
+  expect,
+  hooks,
+  openApp,
+  test,
+  visibleSatellites,
+  waitForTracks,
+} from './fixtures';
 
 test.describe('Error and degraded states', () => {
   test('a failed track download offers a retry that recovers', async ({ page }) => {
@@ -47,6 +56,8 @@ test.describe('Error and degraded states', () => {
     await openApp(page);
     await expect(page.getByTestId('satellite-count')).toHaveText('10/10');
     expect(await visibleSatellites(page)).toHaveLength(10);
+    // Drawn, not just configured: the tracks reach the screen on the fallback style.
+    await expect.poll(() => colouredPixels(page)).toBeGreaterThan(MIN_TRACK_PIXELS);
     const style = await page.evaluate(() => {
       const map = window.__OW_E2E__?.map;
       return map

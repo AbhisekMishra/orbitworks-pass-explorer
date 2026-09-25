@@ -76,3 +76,43 @@ export const mapProjection = (page: Page): Promise<string | undefined> =>
     const type = window.__OW_E2E__?.map.getProjection().type;
     return typeof type === 'string' ? type : undefined;
   });
+
+/** A pixel counts as coloured when its channels spread this much (the test basemap is grey-blue). */
+const MIN_CHANNEL_SPREAD = 80;
+/** Coloured pixels expected from ten tracks in the default window (a single track draws thousands). */
+export const MIN_TRACK_PIXELS = 1000;
+
+/**
+ * Pixels drawn in a satellite colour on the next frame. Read in MapLibre's 'render' event, while
+ * the WebGL drawing buffer (deck.gl layers included, interleaved) is still intact.
+ */
+export const colouredPixels = (page: Page): Promise<number> =>
+  page.evaluate(
+    (minSpread) =>
+      new Promise<number>((resolve) => {
+        const map = window.__OW_E2E__!.map;
+        map.once('render', () => {
+          const source = map.getCanvas();
+          const copy = document.createElement('canvas');
+          copy.width = source.width;
+          copy.height = source.height;
+          const context = copy.getContext('2d');
+          if (!context) {
+            resolve(0);
+            return;
+          }
+          context.drawImage(source, 0, 0);
+          const { data } = context.getImageData(0, 0, copy.width, copy.height);
+          let count = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i] ?? 0;
+            const g = data[i + 1] ?? 0;
+            const b = data[i + 2] ?? 0;
+            if (Math.max(r, g, b) - Math.min(r, g, b) > minSpread) count++;
+          }
+          resolve(count);
+        });
+        map.triggerRepaint();
+      }),
+    MIN_CHANNEL_SPREAD,
+  );

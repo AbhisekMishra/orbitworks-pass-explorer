@@ -8,19 +8,24 @@ model: inherit
 You are a web performance engineer. Performance is this project's **first** design criterion:
 filter changes must reflect on the map "quasi-instantly".
 You are read-only for source files. Allowed Bash: `git diff/log/status`, `pnpm build`, `pnpm size`,
-`pnpm --filter @ow/api bench` (if present), and reading build output such as `apps/web/dist/**`.
+`pnpm --filter @ow/api bench`, and reading build output such as `apps/web/dist/**`.
 
 ## Budgets (see `CLAUDE.md`)
 
-| What                                                         | Budget   |
-| ------------------------------------------------------------ | -------- |
-| Tracks payload (brotli)                                      | ≤ 600 KB |
-| Cached `/api/v1/tracks` p95                                  | < 5 ms   |
-| `/api/v1/accesses` p95 (1 week, 2500 km)                     | < 60 ms  |
-| App JS chunk (gzip)                                          | ≤ 80 KB  |
-| Total JS (gzip)                                              | ≤ 750 KB |
-| `/tracks` requests during timeline scrub or satellite toggle | **0**    |
-| Lighthouse performance                                       | ≥ 85     |
+| What                                                         | Budget                          |
+| ------------------------------------------------------------ | ------------------------------- |
+| Tracks payload (brotli)                                      | ≤ 600 KB                        |
+| Cached `/api/v1/tracks` p95                                  | < 5 ms                          |
+| `/api/v1/accesses` p95 (1 week, 2500 km)                     | < 60 ms                         |
+| App JS chunk (gzip)                                          | ≤ 80 KB                         |
+| Total JS (gzip)                                              | ≤ 750 KB                        |
+| `/tracks` requests during timeline scrub or satellite toggle | **0**                           |
+| Lighthouse FCP / LCP / Speed Index (median of 5, desktop)    | ≤ 1 s / 2 s / 2.4 s (CI runner) |
+| Lighthouse CLS / TBT                                         | ≤ 0.05 / 4 s (CI runner)        |
+
+The overall Lighthouse score is reported, not gated: WebGL start-up inside MapLibre and deck.gl
+dominates its TBT (ADR-010). Do not flag the score itself; flag regressions in the metrics above
+and main-thread work the app itself adds at start-up.
 
 ## What to inspect
 
@@ -35,7 +40,7 @@ You are read-only for source files. Allowed Bash: `git diff/log/status`, `pnpm b
 - **Memoisation**: expensive derivations (decoded tracks, per-satellite attributes, grouped access
   rows) are computed once or memoised with correct keys. Also look for accidental O(n²) loops,
   repeated `Date` parsing inside loops, and `JSON.parse`/`JSON.stringify` in hot paths.
-- **Main thread**: decoding happens in a Worker; no long tasks over 50 ms at startup; rAF loops stop
+- **Main thread**: decoding happens in a Worker; no long tasks over 50 ms at startup from app code; rAF loops stop
   when idle; event handlers (pointermove) are throttled.
 - **Network**:
   - Compression (br/gzip) and a strong ETag with 304 handling.

@@ -28,6 +28,7 @@ pnpm verify           # FULL gate: format, lint, secrets, types, tests+coverage,
 pnpm verify:fast      # same without build/size/e2e
 pnpm test             # unit + integration (all packages) + harness tests
 pnpm e2e              # Playwright against the production build
+pnpm perf             # API latency bench + Lighthouse budgets (needs build + seed; CI `perf` job)
 docker compose up --build   # production-like stack on http://localhost:8080
 ```
 
@@ -66,26 +67,32 @@ thresholds, skip tests, or use `--no-verify`. Fix the root cause.
 
 ## Performance budgets
 
-| What                              | Budget                 |
-| --------------------------------- | ---------------------- |
-| Tracks payload (brotli)           | ≤ 600 KB               |
-| Cached `/tracks` p95              | < 5 ms                 |
-| `/accesses` p95 (1 week, 2500 km) | < 60 ms                |
-| App JS chunk (gzip)               | ≤ 80 KB                |
-| Total JS (gzip)                   | ≤ 750 KB               |
-| Timeline scrub / satellite toggle | **0** network requests |
-| Lighthouse performance            | ≥ 85                   |
+| What                               | Budget                 |
+| ---------------------------------- | ---------------------- |
+| Tracks payload (brotli)            | ≤ 600 KB               |
+| Cached `/tracks` p95               | < 5 ms                 |
+| `/accesses` p95 (1 week, 2500 km)  | < 60 ms                |
+| App JS chunk (gzip)                | ≤ 80 KB                |
+| Total JS (gzip)                    | ≤ 750 KB               |
+| Timeline scrub / satellite toggle  | **0** network requests |
+| Lighthouse FCP / LCP / Speed Index | ≤ 1 s / 2 s / 2.4 s    |
+| Lighthouse CLS / TBT               | ≤ 0.05 / 4 s           |
+
+Lighthouse gates the median of 5 desktop runs per metric; the overall score is reported, not gated
+(WebGL start-up inside MapLibre/deck.gl dominates TBT — ADR-010). Speed Index and TBT limits are set
+from the CI runner (software WebGL), where the gate runs.
 
 ## Testing matrix (keep in sync)
 
-| Feature                                                      | Unit / integration                                | E2E                      |
-| ------------------------------------------------------------ | ------------------------------------------------- | ------------------------ |
-| Geo math, solar position, codec                              | `packages/shared/src/*.test.ts`                   | —                        |
-| Seed + `/dataset` `/tracks` `/accesses` `/healthz` `/readyz` | `apps/api/test/**` (Fastify `inject`, fixture DB) | —                        |
-| Track rendering + satellite filter                           | store/utils tests                                 | `e2e/tracks.spec.ts`     |
-| Timeline (brush, presets, play, zero network)                | `features/timeline/*.test.ts`                     | `e2e/timeline.spec.ts`   |
-| Track hover tooltip                                          | nearest-vertex tests                              | `e2e/tooltip.spec.ts`    |
-| Accesses (pin, radius, dates, daylight, table, sync, CSV)    | `features/accesses/*.test.ts`                     | `e2e/accesses.spec.ts`   |
-| URL state / shareable links                                  | `state/url.test.ts`                               | `e2e/url-state.spec.ts`  |
-| Error and empty states, basemap fallback                     | component tests, `tracks/fetchTracks.test.ts`     | `e2e/resilience.spec.ts` |
-| Help dialog, first-run hint, keyboard (Space, ?)             | component + `hooks.test.tsx`                      | `e2e/onboarding.spec.ts` |
+| Feature                                                      | Unit / integration                                 | E2E                      |
+| ------------------------------------------------------------ | -------------------------------------------------- | ------------------------ |
+| Geo math, solar position, codec                              | `packages/shared/src/*.test.ts`                    | —                        |
+| Seed + `/dataset` `/tracks` `/accesses` `/healthz` `/readyz` | `apps/api/test/**` (Fastify `inject`, fixture DB)  | —                        |
+| Track rendering + satellite filter                           | store/utils tests                                  | `e2e/tracks.spec.ts`     |
+| Timeline (brush, presets, play, zero network)                | `features/timeline/*.test.ts`                      | `e2e/timeline.spec.ts`   |
+| Track hover tooltip                                          | nearest-vertex tests                               | `e2e/tooltip.spec.ts`    |
+| Accesses (pin, radius, dates, daylight, table, sync, CSV)    | `features/accesses/*.test.ts`                      | `e2e/accesses.spec.ts`   |
+| URL state / shareable links                                  | `state/url.test.ts`                                | `e2e/url-state.spec.ts`  |
+| Error and empty states, basemap fallback                     | component tests, `tracks/fetchTracks.test.ts`      | `e2e/resilience.spec.ts` |
+| Help dialog, first-run hint, keyboard (Space, ?)             | component + `hooks.test.tsx`                       | `e2e/onboarding.spec.ts` |
+| Performance budgets (ADR-010)                                | `api/src/perf/*.test.ts`, `web/scripts/*.test.mjs` | `pnpm perf` (CI `perf`)  |
