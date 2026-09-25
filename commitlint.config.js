@@ -4,7 +4,7 @@ export default {
     'scope-enum': [
       2,
       'always',
-      ['api', 'web', 'shared', 'harness', 'ci', 'docker', 'docs', 'deps', 'e2e', 'repo'],
+      ['api', 'web', 'shared', 'harness', 'ci', 'docker', 'docs', 'deps', 'e2e', 'perf', 'repo'],
     ],
     'body-max-line-length': [0],
   },

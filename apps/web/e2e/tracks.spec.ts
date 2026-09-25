@@ -1,4 +1,6 @@
 import {
+  MIN_TRACK_PIXELS,
+  colouredPixels,
   expect,
   hooks,
   mapProjection,
@@ -22,6 +24,11 @@ test.describe('Tracks and satellite filter', () => {
     expect(visible).toHaveLength(10);
     // The window is passed to the GPU relative to the dataset epoch.
     expect(visible[0]).toMatchObject({ windowStartRelS: 0, windowEndRelS: 6 * 3600 });
+    // And they reach the screen (layer props alone do not prove deck.gl drew anything).
+    await expect.poll(() => colouredPixels(page)).toBeGreaterThan(MIN_TRACK_PIXELS);
+    // Negative control: with every satellite hidden, the colour is gone (it came from the tracks).
+    await page.getByRole('region', { name: 'Satellites' }).getByRole('button', { name: 'None' }).click();
+    await expect.poll(() => colouredPixels(page)).toBeLessThan(MIN_TRACK_PIXELS / 10);
   });
 
   test('hides, solos and restores satellites without any network request', async ({ page }) => {

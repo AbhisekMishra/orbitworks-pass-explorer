@@ -340,3 +340,91 @@ the map to stay in sync.
   satellite toggle makes no request.
 - **Edge cases.** It pins next to the antimeridian (one continuous circle) and near a pole
   (outline only), and recovers from a failed request with Retry.
+
+---
+
+## ADR-010: Performance budgets, measured in CI
+
+**Context.** CLAUDE.md sets performance budgets for the API and the web app. A budget that is not
+measured on every change is only a hope, so Phase 5 turns each one into a gate.
+
+**Decision.**
+
+- **API latency: `pnpm --filter @ow/api bench`.** The script boots the production build on the
+  real seeded week and measures latency from the client, body included, over keep-alive HTTP:
+  - `GET /tracks/binary` (brotli): p95 < 5 ms, payload ≤ 600 KB;
+  - `GET /accesses` over the full week at 2,500 km: p95 < 60 ms.
+
+  The gated runs are sequential, because the budgets are per-request latencies; a run at 8
+  concurrent requests is reported for throughput. The tracks p95 sits where GC and scheduling
+  stalls begin (p50 0.8 ms, p99 about 14 ms), so it is gated on the median of three trials of 300.
+  Requests send `accept-encoding` as a browser does, so the on-the-fly compression of
+  `/accesses` is part of the number, and the server logs at its production level. Pins come from a seeded generator: first a pole,
+  both sides of the antimeridian and the brief's UAE point, then points spread uniformly over the
+  sphere. Every run queries the same places, and the hard cases are always included.
+  Percentiles use the nearest rank, so they are always an observed latency.
+
+- **Web: Lighthouse, one budget per metric.** `pnpm --filter @ow/web lighthouse` audits the
+  production build five times with the desktop preset, in headless Chromium with software WebGL
+  (CI runners have no GPU). It gates the median of each metric:
+
+  | Metric                   | Budget  |
+  | ------------------------ | ------- |
+  | First Contentful Paint   | ≤ 1.0 s |
+  | Largest Contentful Paint | ≤ 2.0 s |
+  | Speed Index              | ≤ 1.5 s |
+  | Cumulative Layout Shift  | ≤ 0.05  |
+  | Total Blocking Time      | ≤ 2.0 s |
+
+  The overall score is reported, not gated (decided with the project owner). The TBT ceiling is
+  coarse: measured TBT is 1.0–1.5 s, so it catches a regression that adds half a second or more
+  of main-thread work, not a small one. Profiling is the tool for small ones. Every run's values
+  are in the job summary, so a median that hides a bad run is visible. The LCP element is the
+  first-run hint, which appears once the tracks have loaded (Lighthouse starts each run with empty
+  storage): changing that hint moves LCP.
+
+- **Each run must be the real page.** A run fails unless the tracks download succeeded, since an
+  error card is fast and would pass every budget.
+
+- **Real basemap.** The audit loads the live OpenFreeMap style and tiles, as a user does; the E2E
+  suite stubs them instead. A slow tile server can therefore move the web numbers. It mostly
+  affects TBT and Speed Index (tile rendering). If the basemap does not load at all, the app falls
+  back to a blank style, which is faster, so such a run is retried once and then fails the job
+  rather than passing on a page users would not see.
+
+- **CI.** A `perf` job runs both gates on every PR and writes the tables to the job summary; the
+  raw reports are uploaded as an artifact. They are not part of the pre-push hook: they need the
+  seeded data and a few minutes, and a laptop under load produces noisy numbers.
+
+**Why the Lighthouse score is not the gate.** The first plan asked for a score ≥ 85. The app
+scores 62–66. Every metric is fast except Total Blocking Time (1.0–1.5 s across runs), and profiling shows
+where that time goes: WebGL start-up inside the map libraries, not app code. On a laptop GPU
+(ANGLE/Direct3D):
+
+- MapLibre creates its WebGL context in about 250 ms;
+- MapLibre compiles its shaders on first use, 300–500 ms in all;
+- deck.gl links its programs synchronously, about 250 ms for the first one.
+
+Both libraries compile synchronously, so this work cannot be split or moved off the main thread.
+The only ways to reach 85 would game the metric, for example by creating the map after Lighthouse
+stops measuring, so the globe would appear later for real users.
+
+**Rejected: asynchronous shader linking.** luma.gl can link programs in the background through
+`KHR_parallel_shader_compile`, but it disables this by default. We tried enabling it, with a layer
+extension that asks for a redraw until the programs are ready. On a GPU it cut deck.gl's blocking
+from about 575 ms to 333 ms, because luma.gl still inspects each program synchronously right after
+creating it. SwiftShader, which CI and the E2E suite use, does not expose the extension, so no
+automated test could exercise that path. We rejected it: a modest gain in code that CI cannot check.
+
+**Evidence.** The runs below are on this laptop with the dev servers also running. CI numbers are
+in each PR's job summary.
+
+| Budget                            | Measured                 |
+| --------------------------------- | ------------------------ |
+| Cached `/tracks` p95              | 2.8 ms (512 KB body)     |
+| `/tracks` 304 p95                 | 0.4 ms                   |
+| `/accesses` p95, 1 week, 2,500 km | 17.9 ms (server 15.8 ms) |
+| `/accesses` p95, 1 week, 400 km   | 6.3 ms                   |
+| 2,500 km, 8 concurrent            | 157 req/s, p95 70 ms     |
+| FCP / LCP / Speed Index           | 0.85 s / 1.4 s / 1.2 s   |
+| CLS / TBT                         | 0.008 / 0.95–1.5 s       |

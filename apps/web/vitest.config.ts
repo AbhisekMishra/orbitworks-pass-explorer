@@ -11,12 +11,12 @@ export default mergeConfig(
     test: {
       // Logic tests run in node (fast); component tests opt into jsdom with a docblock.
       environment: 'node',
-      include: ['src/**/*.test.{ts,tsx}'],
+      include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
       setupFiles: ['./src/testing/setup.ts'],
       server: { deps: { inline: ['@ow/shared'] } },
       coverage: {
         provider: 'v8',
-        include: ['src/**/*.{ts,tsx}'],
+        include: ['src/**/*.{ts,tsx}', 'scripts/lighthouseBudgets.mjs'],
         exclude: [
           'src/**/*.test.{ts,tsx}',
           'src/testing/**',
@@ -36,6 +36,8 @@ export default mergeConfig(
           'src/**/*.ts': { lines: 85, branches: 85, functions: 85, statements: 85 },
           // Components: ≥ 70 %.
           'src/**/*.tsx': { lines: 70, branches: 70, functions: 70, statements: 70 },
+          // Budget logic of the perf scripts (the runners are entrypoints, run by CI).
+          'scripts/**/*.mjs': { lines: 85, branches: 85, functions: 85, statements: 85 },
         },
       },
     },
