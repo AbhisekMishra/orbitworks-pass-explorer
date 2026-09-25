@@ -24,6 +24,17 @@ describe('fetchTracks (decode worker logic)', () => {
     expect(transfer).toHaveLength(6);
   });
 
+  it('reports the compressed size from Resource Timing when the browser exposes it', async () => {
+    // A real entry cannot be constructed; an object with its prototype passes the instanceof check.
+    const entry: unknown = Object.create(PerformanceResourceTiming.prototype, {
+      encodedBodySize: { value: 1234 },
+    });
+    const spy = vi.spyOn(performance, 'getEntriesByName').mockReturnValue([entry as PerformanceEntry]);
+    const { response } = await fetchTracks(URL_, ok(new Uint8Array(stream)));
+    spy.mockRestore();
+    expect(response.type === 'done' && response.stats.transferBytes).toBe(1234);
+  });
+
   it('reports HTTP errors with their status', async () => {
     const { response } = await fetchTracks(
       URL_,

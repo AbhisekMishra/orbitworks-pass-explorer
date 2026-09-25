@@ -165,7 +165,11 @@ function arcPiece(g: TrackGeometry, seg: number, v: number, target: Target): Pie
 const pieceStart = (p: Piece) => p.arcStartMs + p.t0 * p.arcMs;
 const pieceEnd = (p: Piece) => p.arcStartMs + p.t1 * p.arcMs;
 
-/** A pass under construction: its pieces plus the ones needed for the summary. */
+/**
+ * A pass under construction: the pieces the summary needs, plus all of them when the path is
+ * requested. Without a path they are not kept: a 2,500 km circle at a pole yields ~75,000 pieces,
+ * and retaining them was most of that query's garbage-collection time.
+ */
 interface PassPieces {
   pieces: Piece[];
   first: Piece;
@@ -174,29 +178,34 @@ interface PassPieces {
 }
 
 /** Extends the latest pass when the piece continues it (same satellite, touching in time). */
-function addPiece(passes: PassPieces[], piece: Piece): void {
+function addPiece(passes: PassPieces[], piece: Piece, keepPieces: boolean): void {
   const current = passes.at(-1);
   const continues =
     current?.last.satellite === piece.satellite &&
     pieceStart(piece) - pieceEnd(current.last) <= MERGE_TOLERANCE_MS;
   if (!current || !continues) {
-    passes.push({ pieces: [piece], first: piece, last: piece, best: piece });
+    passes.push({ pieces: keepPieces ? [piece] : [], first: piece, last: piece, best: piece });
     return;
   }
-  current.pieces.push(piece);
+  if (keepPieces) current.pieces.push(piece);
   current.last = piece;
   if (piece.peakDot > current.best.peakDot) current.best = piece;
 }
 
 /** Groups pieces (in satellite-then-time order) into passes. */
-function groupPasses(g: TrackGeometry, segmentIds: Iterable<number>, target: Target): PassPieces[] {
+function groupPasses(
+  g: TrackGeometry,
+  segmentIds: Iterable<number>,
+  target: Target,
+  keepPieces: boolean,
+): PassPieces[] {
   const passes: PassPieces[] = [];
   for (const seg of segmentIds) {
     if (Number(g.endMs[seg]) <= target.startMs || Number(g.startMs[seg]) >= target.endMs) continue;
     const lastVertex = Number(g.vertexStart[seg + 1]) - 1;
     for (let v = Number(g.vertexStart[seg]); v < lastVertex; v++) {
       const piece = arcPiece(g, seg, v, target);
-      if (piece) addPiece(passes, piece);
+      if (piece) addPiece(passes, piece, keepPieces);
     }
   }
   return passes;
@@ -301,7 +310,7 @@ export function computePasses(g: TrackGeometry, segmentIds: Iterable<number>, q:
   };
   // Filter and sort on cheap numbers first; full Pass objects are only built for what is returned.
   return (
-    groupPasses(g, segmentIds, target)
+    groupPasses(g, segmentIds, target, q.includePath)
       .map((pass) => summarise(pass, q))
       .filter((p) => !q.daylightOnly || p.sunElevation > DAYLIGHT_SUN_ELEVATION_DEG)
       // Ties (simultaneous passes) are rare: order them by satellite name.

@@ -172,13 +172,18 @@ test.describe('Accesses', () => {
     await expect.poll(() => rows(page).count()).toBeLessThan(daylight);
     const { radiusKm } = await hooks.state(page);
 
-    await page.getByLabel('Last day (UTC)').fill('2027-03-02');
+    // Both ends of the day range: 2 and 3 March.
+    await page.getByLabel('Last day (UTC)').fill('2027-03-03');
+    await expect(panel.getByRole('region')).toHaveCount(3);
+    await page.getByLabel('First day (UTC)').fill('2027-03-02');
     await expect(panel.getByRole('region')).toHaveCount(2);
-    await expect.poll(() => page.url()).toContain(`r=${radiusKm}&afrom=2027-03-01&ato=2027-03-02&daylight=1`);
+    await expect(panel.getByRole('region').first()).toHaveAccessibleName('2027-03-02');
+    await expect.poll(() => page.url()).toContain(`r=${radiusKm}&afrom=2027-03-02&ato=2027-03-03&daylight=1`);
 
     await page.reload();
     await expect(page.getByTestId('access-radius')).toHaveText(`${radiusKm.toLocaleString('en-US')} km`);
-    await expect(page.getByLabel('Last day (UTC)')).toHaveValue('2027-03-02');
+    await expect(page.getByLabel('First day (UTC)')).toHaveValue('2027-03-02');
+    await expect(page.getByLabel('Last day (UTC)')).toHaveValue('2027-03-03');
     await expect(page.getByLabel('Daylight passes only')).toBeChecked();
     await expect(panel.getByRole('region')).toHaveCount(2);
   });
@@ -195,6 +200,29 @@ test.describe('Accesses', () => {
     await expect.poll(() => rows(page).count()).toBeLessThan(all);
     await expect(rows(page).filter({ hasText: 'YAM20' })).toHaveCount(0);
     expect(requests).toEqual([]);
+  });
+
+  test('with a pin set, scrubbing and toggling cost no request; only a query change does', async ({
+    page,
+  }) => {
+    await openApp(page, PIN_LINK);
+    await expect(rows(page).first()).toBeVisible();
+    const requests: string[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/api/v1/')) requests.push(r.url());
+    });
+    await page.getByText('YAM20', { exact: true }).first().click();
+    await page.getByRole('button', { name: '1 d', exact: true }).click();
+    await page.getByTestId('timeline-window').focus();
+    await page.keyboard.press('ArrowRight');
+    // A real query change, debounced like everything else: had the toggle or the scrub scheduled
+    // a request, it would be recorded before this one. So the only request is the radius one.
+    await page.getByRole('slider', { name: 'Radius' }).focus();
+    await page.keyboard.press('PageDown');
+    await expect.poll(() => requests.length).toBeGreaterThan(0);
+    const { radiusKm } = await hooks.state(page);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toContain(`radiusKm=${radiusKm}`);
   });
 
   test('exports the passes as CSV', async ({ page }) => {
