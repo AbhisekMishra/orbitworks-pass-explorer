@@ -206,7 +206,7 @@ and the API sees each real client IP: Railway's edge passes it in `X-Real-IP` (s
 
 ## ADR-007: Guardrails first (Claude Code harness)
 
-See [AI_USAGE.md](AI_USAGE.md) _(written in the documentation phase)_.
+The full account, with the harness, prompts and what it caught, is in [AI_USAGE.md](AI_USAGE.md).
 
 **Summary.**
 
@@ -263,8 +263,9 @@ week is 605k vertices (10 satellites × 60,487).
   Playwright suite asserts this.
 - **Software rendering.** In SwiftShader (the CI browser has no GPU), the full-week vertex load
   made the page unresponsive: 9 of 17 E2E tests timed out. With chunking, all pass.
-- **Bundle.** App code is 17 KB gzip. Total JS is 638 KB (budget 750 KB), workers included:
-  MapLibre 296 KB, deck.gl 222 KB and React 66 KB.
+- **Bundle.** At the end of this phase app code was 17 KB gzip and total JS 638 KB (budget
+  750 KB), workers included: MapLibre 296 KB, deck.gl 222 KB and React 66 KB. With the passes UI
+  (ADR-009) the final build is 23.5 KB of app code and 645 KB in total.
 
 **MapLibre 6, served unbundled.**
 
@@ -536,6 +537,7 @@ app on Vercel. The images must be small, hardened and free of known fixable vuln
 **Known limits.**
 
 - Nginx serves gzip, not brotli: 661 KiB vs 555 KiB for the static text. Vercel serves brotli.
-- The Railway service runs in the workspace's default region. Pick one near the audience.
+- The Railway service runs in the workspace's default region, US West (`us-west2`). Pick one near
+  the audience.
 - The three encodings of the tracks share one strong ETag. Browsers are fine thanks to
   `Vary: Accept-Encoding`, but a shared cache in front would need per-encoding tags.

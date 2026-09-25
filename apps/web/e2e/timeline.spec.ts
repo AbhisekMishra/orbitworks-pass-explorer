@@ -38,7 +38,7 @@ test.describe('Timeline', () => {
     await page.getByRole('button', { name: '1 h', exact: true }).click();
     await expect.poll(() => trackWindow(page)).toEqual([0, H]);
 
-    expect(requests).toHaveLength(0);
+    expect(requests.map((r) => r.url())).toEqual([]);
   });
 
   test('dragging the window scrubs through time without refetching', async ({ page }) => {
@@ -53,11 +53,14 @@ test.describe('Timeline', () => {
     await page.mouse.move(win.x + win.width / 2 + track.width / 7, y, { steps: 12 }); // ≈ one day
     await page.mouse.up();
 
-    const [start, end] = await trackWindow(page);
-    expect(start).toBeGreaterThan(20 * H);
-    expect(start).toBeLessThan(28 * H);
-    expect(end - start).toBe(6 * H); // moved, not resized
-    expect(requests).toHaveLength(0);
+    // Moved by about a day, not resized (polled: the layer props may land a frame later).
+    await expect(async () => {
+      const [start, end] = await trackWindow(page);
+      expect(start).toBeGreaterThan(20 * H);
+      expect(start).toBeLessThan(28 * H);
+      expect(end - start).toBe(6 * H);
+    }).toPass();
+    expect(requests.map((r) => r.url())).toEqual([]);
   });
 
   test('dragging a handle resizes the window', async ({ page }) => {
@@ -69,9 +72,12 @@ test.describe('Timeline', () => {
     await page.mouse.down();
     await page.mouse.move(track.x + track.width * (2 / 7), y, { steps: 8 });
     await page.mouse.up();
-    const [start, end] = await trackWindow(page);
-    expect(start).toBe(0);
-    expect(end).toBeGreaterThan(40 * H);
+    // Polled: the layer props may land a frame after the pointer is released.
+    await expect(async () => {
+      const [start, end] = await trackWindow(page);
+      expect(start).toBe(0);
+      expect(end).toBeGreaterThan(40 * H);
+    }).toPass();
   });
 
   test('exact UTC times can be typed', async ({ page }) => {
@@ -81,8 +87,9 @@ test.describe('Timeline', () => {
     await expect.poll(() => trackWindow(page)).toEqual([0, 12.5 * H]);
   });
 
-  test('play slides the window forward and pause stops it', async ({ page }) => {
+  test('play slides the window forward without any request, and pause stops it', async ({ page }) => {
     await openApp(page);
+    const requests = recordApiRequests(page);
     await page.getByLabel('Playback speed').selectOption('3600');
     await page.getByRole('button', { name: 'Play' }).click();
     // Any forward movement proves the loop runs; software-rendered CI browsers draw few frames.
@@ -103,6 +110,8 @@ test.describe('Timeline', () => {
         }),
     );
     expect((await hooks.state(page)).timeWindow).toEqual(paused);
+    // Playback only moves the GPU window: nothing is fetched while it runs.
+    expect(requests.map((r) => r.url())).toEqual([]);
   });
 
   test('arrow keys nudge the window', async ({ page }) => {
