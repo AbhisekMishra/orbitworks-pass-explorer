@@ -38,6 +38,10 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        // Full Chromium in new headless mode rather than the separate headless shell: with software
+        // WebGL the shell intermittently lost browser contexts on CI (newContext: 'Failed to find
+        // browser context'), while the Lighthouse job, on full Chromium, never did.
+        channel: 'chromium',
         viewport: { width: 1280, height: 800 },
         // WebGL without a GPU (CI runners): SwiftShader software rendering.
         launchOptions: {
