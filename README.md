@@ -216,8 +216,8 @@ single-threaded work about 3× slower than the laptop, and the query cost grows 
 passes found: about 300 a week at mid-latitudes, about 1,065 at or near the poles, where
 sun-synchronous orbits make the circle catch every revolution. The final review found the polar
 tail over budget on the live service and optimized the pass engine: it keeps only the pieces a pass
-summary needs and formats timestamps without a per value (polar geometry 13.2 → 9.0 ms
-locally). Server compute () on Railway at 2,500 km, 16 pins from pole to equator:
+summary needs and formats timestamps without a `Date` per value (polar geometry 13.2 → 9.0 ms
+locally). Server compute (`server-timing`) on Railway at 2,500 km, 16 pins from pole to equator:
 
 | Live, 2,500 km        | Before     | After      |
 | --------------------- | ---------- | ---------- |
