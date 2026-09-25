@@ -212,13 +212,20 @@ inside MapLibre and deck.gl (context creation and shader compilation), not app c
 the profile.
 
 **On the live API.** The budgets above are measured where CI runs. Railway's shared cores run this
-single-threaded work about 3× slower than the laptop, so the live service is slower, and the query
-cost grows with the number of passes found. Server compute (`server-timing`) at 2,500 km, before
-the optimization below: 21–45 ms at mid-latitudes (about 300 passes a week) and 48–83 ms at or near
-the poles, where sun-synchronous orbits make the circle catch about 1,065 passes. Found in the final
-review, the pass engine now keeps only the pieces a pass summary needs and formats timestamps
-without a `Date` per value: polar geometry went from 13.2 to 9.0 ms locally, mid-latitude from 3.9
-to 2.6 ms. The remaining levers are a faster instance or a second replica.
+single-threaded work about 3× slower than the laptop, and the query cost grows with the number of
+passes found: about 300 a week at mid-latitudes, about 1,065 at or near the poles, where
+sun-synchronous orbits make the circle catch every revolution. The final review found the polar
+tail over budget on the live service and optimized the pass engine: it keeps only the pieces a pass
+summary needs and formats timestamps without a `Date` per value (polar geometry 13.2 → 9.0 ms
+locally). Server compute (`server-timing`) on Railway at 2,500 km, 16 pins from pole to equator:
+
+| Live, 2,500 km        | Before     | After      |
+| --------------------- | ---------- | ---------- |
+| Mid-latitudes         | 21–45 ms   | 13–35 ms   |
+| Poles and 75°         | 48–83 ms   | 29–52 ms   |
+| p95 / max over sample | 82 / 83 ms | 48 / 52 ms |
+
+If traffic grows, the next levers are a faster instance or a second replica.
 
 ## Quality and delivery
 
