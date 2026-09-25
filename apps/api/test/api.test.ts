@@ -411,6 +411,25 @@ describe(`GET ${API}/accesses`, () => {
     expect((await call('203.0.113.1')).statusCode).toBe(429);
   });
 
+  it('identifies clients by the client-IP header of the proxy when configured (Railway: X-Real-IP)', async () => {
+    // Railway's edge sends the client in X-Real-IP; the socket peer is the (rotating) edge node.
+    const proxied = await env.app({
+      RATE_LIMIT_ACCESSES_PER_MIN: '1',
+      TRUST_PROXY_HOPS: '1',
+      CLIENT_IP_HEADER: 'x-real-ip',
+    });
+    const call = (client: string, edge: string) =>
+      proxied.inject({
+        method: 'GET',
+        url: `${API}/accesses?lat=1&lon=1`,
+        remoteAddress: edge,
+        headers: { 'x-real-ip': client },
+      });
+    expect((await call('203.0.113.1', '198.51.100.1')).statusCode).toBe(200);
+    expect((await call('203.0.113.2', '198.51.100.1')).statusCode).toBe(200); // same edge, other client
+    expect((await call('203.0.113.1', '198.51.100.2')).statusCode).toBe(429); // same client, other edge
+  });
+
   it('ignores X-Forwarded-For when no proxy is trusted (no limit evasion by spoofing)', async () => {
     const direct = await env.app({ RATE_LIMIT_ACCESSES_PER_MIN: '1' });
     const call = (spoofed: string) =>

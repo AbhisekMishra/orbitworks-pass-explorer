@@ -20,6 +20,7 @@ import type { Config } from './config.js';
 import type { Database } from './db/database.js';
 import type { TrackGeometry } from './domain/geometry.js';
 import { DYNAMIC_BROTLI_QUALITY } from './http/compression.js';
+import { clientIp } from './http/clientIp.js';
 import { registerErrorHandling } from './http/errors.js';
 import { accessRoutes } from './routes/accesses.js';
 import { datasetRoutes } from './routes/dataset.js';
@@ -93,6 +94,8 @@ export async function buildApp({
   await app.register(fastifyRateLimit, {
     max: config.RATE_LIMIT_GLOBAL_PER_MIN,
     timeWindow: '1 minute',
+    // Per client, however the proxy in front passes the client address (http/clientIp.ts).
+    keyGenerator: (request) => clientIp(request, config.CLIENT_IP_HEADER),
   });
   await app.register(fastifyCompress, {
     encodings: ['br', 'gzip'],
