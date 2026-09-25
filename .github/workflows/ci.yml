@@ -187,7 +187,7 @@ jobs:
         with:
           image-ref: orbitworks-api:latest
           # The scanner binary is pinned too, not only the action.
-          version: v0.66.0
+          version: v0.74.0
           scanners: vuln
           severity: HIGH,CRITICAL
           ignore-unfixed: true
@@ -196,7 +196,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: orbitworks-web:latest
-          version: v0.66.0
+          version: v0.74.0
           scanners: vuln
           severity: HIGH,CRITICAL
           ignore-unfixed: true
