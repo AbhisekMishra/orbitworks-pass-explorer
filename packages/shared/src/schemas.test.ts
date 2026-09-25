@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import { MAX_SATELLITES_PER_QUERY, RADIUS_KM } from './constants.js';
 import {
@@ -318,5 +319,11 @@ describe('response schemas', () => {
     expect(TracksGeoJsonSchema.safeParse({ type: 'FeatureCollection', features: [feature] }).success).toBe(
       false,
     );
+  });
+});
+
+describe('zod configuration', () => {
+  it('is jitless, so no schema ever calls eval (the web CSP forbids it)', () => {
+    expect(z.config().jitless).toBe(true);
   });
 });

@@ -26,6 +26,7 @@
     "size": "pnpm -r --if-present size",
     "e2e": "pnpm -r --if-present e2e",
     "perf": "pnpm --filter @ow/api bench && pnpm --filter @ow/web lighthouse",
+    "smoke:docker": "bash scripts/docker-smoke.sh",
     "verify": "node scripts/verify.mjs",
     "verify:fast": "node scripts/verify.mjs --fast",
     "test:harness": "vitest run --config vitest.config.mjs"

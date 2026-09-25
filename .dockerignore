@@ -1,0 +1,37 @@
+# Build context for apps/api/Dockerfile and apps/web/Dockerfile (both use the repo root).
+# Everything is rebuilt inside the image: never send local builds, deps or generated data.
+# Patterns are anchored at the context root, hence the **/ prefixes.
+**/node_modules
+**/dist
+**/dist-e2e
+**/coverage
+**/test-results
+**/playwright-report
+**/lighthouse-report
+**/perf-results
+**/*.tsbuildinfo
+**/*.duckdb
+**/.duckdb
+apps/api/data
+
+# Not needed to build or run
+.git
+.github
+.claude
+.vscode
+.idea
+docs
+tests
+**/e2e
+**/*.test.ts
+**/*.test.tsx
+**/*.test.mjs
+**/*.log
+
+# Secrets never enter an image (Vite would even inline VITE_* values into the public bundle).
+**/.env
+**/.env.*
+!**/.env.example
+**/.npmrc
+**/*.pem
+**/*.key

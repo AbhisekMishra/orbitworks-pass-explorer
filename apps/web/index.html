@@ -10,7 +10,8 @@
       content="Explore a week of simulated satellite ground tracks and find when satellites pass over any place on Earth."
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <!-- Start the TLS handshakes with the basemap and API origins while the JS loads. -->
+    <!-- Start the TLS handshake with the basemap origin while the JS loads (the API origin, when
+         it is another one, is added at build time: apiPreconnect in vite.config.ts). -->
     <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
     <title>Orbitworks Pass Explorer</title>
   </head>

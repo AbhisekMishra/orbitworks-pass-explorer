@@ -60,8 +60,28 @@ function maplibreUnbundled(): Plugin {
   };
 }
 
+/**
+ * When the API is another origin (VITE_API_URL, the Vercel build), start its DNS/TCP/TLS setup
+ * from the HTML, as for the basemap: otherwise the handshake waits for the JS, and the tracks
+ * download (the critical request) waits behind it. Same-origin builds need nothing.
+ */
+function apiPreconnect(): Plugin {
+  let origin: string | null = null;
+  return {
+    name: 'ow:api-preconnect',
+    configResolved(config) {
+      const url: unknown = config.env.VITE_API_URL;
+      origin = typeof url === 'string' && URL.canParse(url) ? new URL(url).origin : null;
+    },
+    transformIndexHtml: () =>
+      origin
+        ? [{ tag: 'link', attrs: { rel: 'preconnect', href: origin, crossorigin: true }, injectTo: 'head' }]
+        : [],
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), maplibreUnbundled()],
+  plugins: [react(), maplibreUnbundled(), apiPreconnect()],
   // Bundle @ow/shared from source: one TS toolchain, exact sourcemaps, better tree-shaking.
   resolve: { conditions: ['@ow/source', ...defaultClientConditions] },
   // In dev MapLibre is served from node_modules as-is, for the same reason as maplibreUnbundled.

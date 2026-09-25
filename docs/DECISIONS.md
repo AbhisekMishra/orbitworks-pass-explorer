@@ -433,3 +433,105 @@ GitHub's ubuntu-latest runner (PR #5). Later CI numbers are in each PR's job sum
 | FCP / LCP                         | 0.88 s / 1.40 s          | 0.87 s / 1.22 s          |
 | Speed Index                       | 1.31 s                   | 1.77 s                   |
 | CLS / TBT                         | 0.008 / 1.30 s           | 0.008 / 2.93 s           |
+
+---
+
+## ADR-011: Container images and deployment
+
+**Context.** The brief asks for Docker. ADR-006 put the API on Railway (our Dockerfile) and the web
+app on Vercel. The images must be small, hardened and free of known fixable vulnerabilities, and
+`docker compose up` must give a production-like stack.
+
+**Decision.**
+
+- **API image (`apps/api/Dockerfile`).**
+  - A multi-stage build seeds the database from `data/` at build time, so the image is immutable
+    and starts in about a second.
+  - The runtime is distroless Node 22 on Debian 13, running as uid 65532. It has no shell or
+    package manager. Debian because DuckDB's prebuilt bindings need glibc.
+  - Only the target platform's DuckDB bindings are installed (`supportedArchitectures`); each extra
+    platform's bindings is about 70 MB.
+  - `pnpm deploy --prod` copies production dependencies only, with `@ow/shared` as a built package.
+  - The data files belong to root and cannot be written at runtime; DuckDB opens them READ_ONLY.
+  - The healthcheck probes `/readyz` with the image's own Node, since distroless has no curl.
+- **Web image (`apps/web/Dockerfile`).** The static build is served by unprivileged nginx
+  1.30-alpine (uid 101, port 8080).
+  - nginx proxies `/api` to the API service, so the image is same-origin only: its CSP allows the
+    API at `'self'`. Cross-origin hosting is the Vercel build.
+  - Files are gzip-precompressed at build time and served with `gzip_static`, since stock nginx
+    has no brotli module. Source maps are removed from the image.
+  - `apk upgrade` at build time picks up Alpine security fixes published after the base image.
+  - `.mjs` is mapped to `text/javascript`: nginx's MIME map lacks it, and `nosniff` would block
+    MapLibre's modules.
+  - nginx re-resolves the `api` service through Docker's DNS, so recreating that container alone
+    does not break the proxy. Tracks responses are buffered in memory.
+- **Base images** are literal `FROM` lines pinned by digest, which Dependabot can update. A
+  retagged or compromised tag cannot silently change a build.
+- **Security headers.** A strict Content-Security-Policy with no `'unsafe-inline'` or
+  `'unsafe-eval'`. Everything is self-hosted except the basemap host and, on Vercel, the API origin.
+  There is also `nosniff`, a referrer policy, a permissions policy, COOP and
+  `frame-ancestors 'none'`.
+  - nginx applies them per location, so proxied API responses keep helmet's headers.
+  - Vercel sets the same headers from `apps/web/vercel.json`. A unit test
+    (`scripts/securityHeaders.test.mjs`) keeps the two copies identical, apart from the API origin
+    and the HTTPS upgrade.
+  - With no `'unsafe-eval'`, Zod's JIT (`new Function`) is off (`z.config({ jitless: true })` in
+    `@ow/shared`). Even Zod's feature probe counted as a CSP violation. The browser smoke test
+    caught this; a manual check had missed it. The API bench is unchanged.
+- **Compose (`docker-compose.yml`).**
+  - Both services run with a read-only root filesystem, a `/tmp` tmpfs, all capabilities dropped,
+    `no-new-privileges`, and pid, memory and CPU limits (API: 768 MB for a measured ~365 MB).
+  - The web service waits for the API's healthcheck, and the API trusts one proxy hop (nginx).
+- **CI (`docker` job).**
+  - Builds both images and starts the stack with `--wait`.
+  - `scripts/docker-smoke.sh` checks, through nginx:
+    - health, the CSP and `no-cache` on `index.html`;
+    - precompressed, immutable assets, and a 404 for a missing asset;
+    - the `.mjs` MIME type, and no source maps;
+    - API headers left alone;
+    - brotli tracks within the budget, with a 304 on revalidation;
+    - the brief's UAE passes;
+    - non-root users and read-only filesystems.
+  - A hook-free Playwright test (`e2e/smoke`) then loads the page in Chromium and fails on any CSP
+    violation or page error. It checks that the worker's tracks download succeeds and that the UAE
+    passes appear.
+  - Trivy (action and binary both pinned) fails on any fixable HIGH or CRITICAL vulnerability.
+    hadolint and actionlint-clean workflows complete the checks, and Dependabot tracks the base
+    images.
+- **Release (`release.yml`).**
+  - Runs only after CI succeeds on `main` (`workflow_run`, building the exact tested commit), or
+    on a `v*` tag.
+  - Pushes both images to GHCR with an SBOM and a max-mode provenance attestation.
+  - Its build cache is its own. The CI jobs, which run third-party scanners, cannot write layers
+    that a published image reuses.
+- **Deploy.**
+  - **Railway (API):** builds `apps/api/Dockerfile` from `railway.json`, with a `/readyz` deploy
+    gate and restart on failure. Service variables:
+    - `PORT=3000`, matching the domain's target port;
+    - `TRUST_PROXY_HOPS=1`, so Railway's edge is the one trusted hop and rate limits see real
+      client IPs;
+    - `LOG_LEVEL=info`;
+    - `CORS_ORIGINS`: the Vercel production origin only.
+  - **Vercel (web):** Root Directory `apps/web`. pnpm runs through corepack from the repo root, so
+    it is the pinned pnpm 10. `VITE_API_URL` is the Railway origin, which must match the one in the
+    `vercel.json` CSP. The build then preconnects to it from the HTML (`apiPreconnect` in
+    `vite.config.ts`).
+  - **After each production deploy:** Vercel reports a GitHub deployment status, and
+    `deployed-smoke.yml` runs the browser smoke test against the live site (`PRODUCTION_URL`). That
+    covers the cross-origin path (CORS, CSP, workers) on real infrastructure.
+
+**Evidence (local build).**
+
+- The API image is 401 MB: 124 MB distroless Node, 105 MB production dependencies (DuckDB is 71 MB
+  of that), and 28 MB of data. The web image is 93 MB.
+- Trivy found 0 fixable HIGH/CRITICAL issues in either image. Before moving off
+  `nginx-unprivileged:1.28` (end of life) and distroless Debian 12, it reported 63 and 6.
+- The stack becomes healthy in about 12 s. The smoke script and the browser smoke test both pass.
+  Resident memory is ~365 MB for the API and ~25 MB for nginx.
+
+**Known limits.**
+
+- Nginx serves gzip, not brotli: 661 KiB vs 555 KiB for the static text. Vercel serves brotli.
+- The Railway service runs in the workspace's default region. Pick one near the audience.
+- The three encodings of the tracks share one strong ETag. Browsers are fine thanks to
+  `Vary: Accept-Encoding`, but a shared cache in front would need per-encoding tags.
