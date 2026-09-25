@@ -19,7 +19,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: CI,
   retries: CI ? 1 : 0,
-  workers: CI ? 2 : 3,
+  // A retry that passes is still a failure: retries only collect a trace for diagnosis. (Phase 4
+  // shipped with 7 tests that passed only on retry; a green job had hidden them.)
+  failOnFlakyTests: CI,
+  // One worker on CI: each worker runs its own Chromium with SwiftShader, which renders WebGL on
+  // every CPU core. Two of them on a 4-vCPU runner starved each other (GPU process stalls, hung
+  // page.evaluate calls, dropped browser contexts: 7–9 flaky tests per run). Locally there is headroom.
+  workers: CI ? 1 : 3,
   reporter: CI ? [['github'], ['html', { open: 'never' }]] : [['list']],
   use: {
     baseURL: `http://127.0.0.1:${WEB_PORT}`,
