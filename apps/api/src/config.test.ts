@@ -25,8 +25,10 @@ describe('loadConfig', () => {
       PORT: '8080',
       CORS_ORIGINS: 'https://a.example, https://b.example ,',
       TRUST_PROXY_HOPS: '1',
+      CLIENT_IP_HEADER: 'x-real-ip',
     });
     expect(config).toMatchObject({
+      CLIENT_IP_HEADER: 'x-real-ip',
       PORT: 8080,
       CORS_ORIGINS: ['https://a.example', 'https://b.example'],
       TRUST_PROXY_HOPS: 1,
@@ -42,6 +44,8 @@ describe('loadConfig', () => {
     [{ CORS_ORIGINS: 'https://app.example/path' }, /bare origins/],
     [{ NODE_ENV: 'staging' }, /NODE_ENV/],
     [{ DUCKDB_POOL_SIZE: '0' }, /DUCKDB_POOL_SIZE/],
+    [{ CLIENT_IP_HEADER: 'x-real-ip' }, /TRUST_PROXY_HOPS/], // spoofable without a proxy in front
+    [{ CLIENT_IP_HEADER: 'X Real IP', TRUST_PROXY_HOPS: '1' }, /header name/],
   ])('fails fast with a readable message for %j', (env, message) => {
     expect(() => loadConfig(env)).toThrow(message);
   });

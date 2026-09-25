@@ -200,7 +200,7 @@ geometry; and the brief's Docker deliverable would go unused.
 **Networking.** The web app calls the API cross-origin (CORS allowlist) rather than through a Vercel
 rewrite. Behind a rewrite, every user would reach the API from Vercel's egress IPs and share one
 rate-limit bucket. Direct calls are simple GETs with no custom headers, so they need no preflight,
-and Railway sees each real client IP (one trusted proxy hop).
+and the API sees each real client IP: Railway's edge passes it in `X-Real-IP` (see ADR-011).
 
 ---
 
@@ -508,8 +508,12 @@ app on Vercel. The images must be small, hardened and free of known fixable vuln
   - **Railway (API):** builds `apps/api/Dockerfile` from `railway.json`, with a `/readyz` deploy
     gate and restart on failure. Service variables:
     - `PORT=3000`, matching the domain's target port;
-    - `TRUST_PROXY_HOPS=1`, so Railway's edge is the one trusted hop and rate limits see real
-      client IPs;
+    - `TRUST_PROXY_HOPS=1` and `CLIENT_IP_HEADER=x-real-ip`: rate limits key on the client
+      address. Railway's edge sends it in `X-Real-IP`, not `X-Forwarded-For`, and its own
+      rotating address as the socket peer. Found after the first deploy: until then, every visitor
+      routed through the same edge node shared one rate-limit bucket. The header is honored only
+      behind a trusted proxy, only when it holds a single valid IP, and only after checking that
+      Railway overwrites a client-sent value;
     - `LOG_LEVEL=info`;
     - `CORS_ORIGINS`: the Vercel production origin only.
   - **Vercel (web):** Root Directory `apps/web`. pnpm runs through corepack from the repo root, so
