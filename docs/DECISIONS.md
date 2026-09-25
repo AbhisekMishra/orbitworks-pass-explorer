@@ -372,13 +372,17 @@ measured on every change is only a hope, so Phase 5 turns each one into a gate.
   | ------------------------ | ------- |
   | First Contentful Paint   | ≤ 1.0 s |
   | Largest Contentful Paint | ≤ 2.0 s |
-  | Speed Index              | ≤ 1.5 s |
+  | Speed Index              | ≤ 2.4 s |
   | Cumulative Layout Shift  | ≤ 0.05  |
-  | Total Blocking Time      | ≤ 2.0 s |
+  | Total Blocking Time      | ≤ 4.0 s |
 
-  The overall score is reported, not gated (decided with the project owner). The TBT ceiling is
-  coarse: measured TBT is 1.0–1.5 s, so it catches a regression that adds half a second or more
-  of main-thread work, not a small one. Profiling is the tool for small ones. Every run's values
+  The overall score is reported, not gated (decided with the project owner). The limits for
+  Speed Index and TBT are set from the CI runner, where the gate runs, with about 35 % headroom
+  over its medians (also decided with the project owner). The first budgets (1.5 s and 2 s) came
+  from a laptop; the runner does software WebGL about twice as slowly, and the first CI run
+  measured Speed Index 1.77 s and TBT 2.9 s (2.3–4.3 s across runs). FCP, LCP and CLS barely
+  depend on the GPU and kept their limits. The TBT ceiling is coarse: it catches a regression that
+  adds about a second of main-thread work, not a small one. Profiling is the tool for small ones. Every run's values
   are in the job summary, so a median that hides a bad run is visible. The LCP element is the
   first-run hint, which appears once the tracks have loaded (Lighthouse starts each run with empty
   storage): changing that hint moves LCP.
@@ -397,7 +401,7 @@ measured on every change is only a hope, so Phase 5 turns each one into a gate.
   seeded data and a few minutes, and a laptop under load produces noisy numbers.
 
 **Why the Lighthouse score is not the gate.** The first plan asked for a score ≥ 85. The app
-scores 62–66. Every metric is fast except Total Blocking Time (1.0–1.5 s across runs), and profiling shows
+scores 62–66. Every metric is fast except Total Blocking Time (1.0–1.5 s on a laptop, about 3 s on the CI runner), and profiling shows
 where that time goes: WebGL start-up inside the map libraries, not app code. On a laptop GPU
 (ANGLE/Direct3D):
 
@@ -416,15 +420,16 @@ from about 575 ms to 333 ms, because luma.gl still inspects each program synchro
 creating it. SwiftShader, which CI and the E2E suite use, does not expose the extension, so no
 automated test could exercise that path. We rejected it: a modest gain in code that CI cannot check.
 
-**Evidence.** The runs below are on this laptop with the dev servers also running. CI numbers are
-in each PR's job summary.
+**Evidence.** Laptop runs had the dev servers also running; CI is the first `perf` job on
+GitHub's ubuntu-latest runner (PR #5). Later CI numbers are in each PR's job summary.
 
-| Budget                            | Measured                 |
-| --------------------------------- | ------------------------ |
-| Cached `/tracks` p95              | 2.8 ms (512 KB body)     |
-| `/tracks` 304 p95                 | 0.4 ms                   |
-| `/accesses` p95, 1 week, 2,500 km | 17.9 ms (server 15.8 ms) |
-| `/accesses` p95, 1 week, 400 km   | 6.3 ms                   |
-| 2,500 km, 8 concurrent            | 157 req/s, p95 70 ms     |
-| FCP / LCP / Speed Index           | 0.85 s / 1.4 s / 1.2 s   |
-| CLS / TBT                         | 0.008 / 0.95–1.5 s       |
+| Budget                            | Laptop                   | CI runner                |
+| --------------------------------- | ------------------------ | ------------------------ |
+| Cached `/tracks` p95              | 2.0 ms (512 KB body)     | 2.6 ms                   |
+| `/tracks` 304 p95                 | 0.4 ms                   | 0.6 ms                   |
+| `/accesses` p95, 1 week, 2,500 km | 19.3 ms (server 15.3 ms) | 28.8 ms (server 23.3 ms) |
+| `/accesses` p95, 1 week, 400 km   | 6.2 ms                   | 11.1 ms                  |
+| 2,500 km, 8 concurrent            | 159 req/s, p95 74 ms     | 81 req/s, p95 146 ms     |
+| FCP / LCP                         | 0.88 s / 1.40 s          | 0.87 s / 1.22 s          |
+| Speed Index                       | 1.31 s                   | 1.77 s                   |
+| CLS / TBT                         | 0.008 / 1.30 s           | 0.008 / 2.93 s           |

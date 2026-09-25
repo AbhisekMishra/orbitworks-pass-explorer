@@ -1,7 +1,9 @@
 // Lighthouse budgets (CLAUDE.md "Performance budgets", ADR-010): one budget per metric the app
 // controls, gated on the median of several runs. The overall score is reported, not gated: on a
 // cold start its Total Blocking Time is dominated by WebGL context creation and shader compilation
-// inside MapLibre and deck.gl. TBT still has a ceiling, so a regression in our own main-thread
+// inside MapLibre and deck.gl. Speed Index and TBT limits are set from the CI runner (software
+// WebGL, about 2× slower than a laptop), where the gate runs. TBT still has a ceiling, so a
+// regression in our own main-thread
 // work fails the gate.
 
 /** @typedef {{ id: string, label: string, max: number, unit: 'ms' | '' }} MetricBudget */
@@ -10,9 +12,9 @@
 export const LIGHTHOUSE_BUDGETS = [
   { id: 'first-contentful-paint', label: 'FCP', max: 1000, unit: 'ms' },
   { id: 'largest-contentful-paint', label: 'LCP', max: 2000, unit: 'ms' },
-  { id: 'speed-index', label: 'Speed Index', max: 1500, unit: 'ms' },
+  { id: 'speed-index', label: 'Speed Index', max: 2400, unit: 'ms' },
   { id: 'cumulative-layout-shift', label: 'CLS', max: 0.05, unit: '' },
-  { id: 'total-blocking-time', label: 'TBT', max: 2000, unit: 'ms' },
+  { id: 'total-blocking-time', label: 'TBT', max: 4000, unit: 'ms' },
 ];
 
 /** Median of a non-empty list (the upper middle for an even count: never flatters the result). */
@@ -40,13 +42,23 @@ export function evaluateBudgets(runs, budgets = LIGHTHOUSE_BUDGETS) {
 export const TRACKS_PATH = '/api/v1/tracks/binary';
 
 /**
- * Whether the audited page loaded the app's data: the tracks download succeeded. Without this, a
- * broken proxy or API would show the error card, which is fast, and the budgets would pass.
+ * Successful requests of a Lighthouse run, as parsed URLs. Matching is on parsed parts (exact
+ * hostname, pathname), never substrings: a URL can carry any host name in its path or query.
  * @param {{ audits: Record<string, { details?: { items?: readonly { url?: string, statusCode?: number }[] } } | undefined> }} lhr
  */
+function okRequests(lhr) {
+  return (lhr.audits['network-requests']?.details?.items ?? []).flatMap((r) =>
+    r.statusCode === 200 && typeof r.url === 'string' && URL.canParse(r.url) ? [new URL(r.url)] : [],
+  );
+}
+
+/**
+ * Whether the audited page loaded the app's data: the tracks download succeeded. Without this, a
+ * broken proxy or API would show the error card, which is fast, and the budgets would pass.
+ * @param {Parameters<typeof okRequests>[0]} lhr
+ */
 export function appLoaded(lhr) {
-  const items = lhr.audits['network-requests']?.details?.items ?? [];
-  return items.some((r) => typeof r.url === 'string' && r.url.includes(TRACKS_PATH) && r.statusCode === 200);
+  return okRequests(lhr).some((u) => u.pathname === TRACKS_PATH);
 }
 
 /** The live basemap host (ADR-010: the audit measures the real page, basemap included). */
@@ -56,14 +68,12 @@ export const BASEMAP_HOST = 'tiles.openfreemap.org';
  * Whether the audited page got the real basemap: its style and at least one vector tile loaded.
  * If the host is down the app falls back to a blank style, which is faster; such a run must not
  * count as a pass.
- * @param {Parameters<typeof appLoaded>[0]} lhr
+ * @param {Parameters<typeof okRequests>[0]} lhr
  */
 export function basemapLoaded(lhr) {
-  const ok = (lhr.audits['network-requests']?.details?.items ?? []).filter(
-    (r) => typeof r.url === 'string' && r.url.includes(BASEMAP_HOST) && r.statusCode === 200,
-  );
+  const basemap = okRequests(lhr).filter((u) => u.hostname === BASEMAP_HOST);
   return (
-    ok.some((r) => r.url.includes('/styles/')) && ok.some((r) => new URL(r.url).pathname.endsWith('.pbf'))
+    basemap.some((u) => u.pathname.startsWith('/styles/')) && basemap.some((u) => u.pathname.endsWith('.pbf'))
   );
 }
 

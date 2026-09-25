@@ -59,9 +59,9 @@ describe('evaluateBudgets', () => {
     expect(LIGHTHOUSE_BUDGETS.map((b) => [b.label, b.max])).toEqual([
       ['FCP', 1000],
       ['LCP', 2000],
-      ['Speed Index', 1500],
+      ['Speed Index', 2400],
       ['CLS', 0.05],
-      ['TBT', 2000],
+      ['TBT', 4000],
     ]);
   });
 });
@@ -77,6 +77,8 @@ describe('appLoaded', () => {
     expect(appLoaded(lhr([{ url: `https://x${TRACKS_PATH}`, statusCode: 500 }]))).toBe(false);
     expect(appLoaded(lhr([{ url: 'https://x/api/v1/dataset', statusCode: 200 }]))).toBe(false);
     expect(appLoaded({ audits: {} })).toBe(false);
+    // The path must be the tracks endpoint itself, not merely contain it.
+    expect(appLoaded(lhr([{ url: `https://x/proxy?u=${TRACKS_PATH}`, statusCode: 200 }]))).toBe(false);
   });
 });
 
@@ -95,6 +97,13 @@ describe('basemapLoaded', () => {
     expect(basemapLoaded(lhr([style, { ...tile, statusCode: 503 }]))).toBe(false);
     expect(basemapLoaded(lhr([style, { ...tile, url: 'https://example.org/0.pbf' }]))).toBe(false);
     expect(basemapLoaded({ audits: {} })).toBe(false);
+  });
+
+  it('matches the exact host, not a host name hidden in another URL', () => {
+    const spoofed = (u) => ({ ...tile, url: u });
+    expect(basemapLoaded(lhr([style, spoofed(`https://evil.example/?${BASEMAP_HOST}/0.pbf`)]))).toBe(false);
+    expect(basemapLoaded(lhr([style, spoofed(`https://${BASEMAP_HOST}.evil.example/0.pbf`)]))).toBe(false);
+    expect(basemapLoaded(lhr([style, { url: 'not a url', statusCode: 200 }]))).toBe(false);
   });
 });
 

@@ -12,16 +12,16 @@ You are read-only for source files. Allowed Bash: `git diff/log/status`, `pnpm b
 
 ## Budgets (see `CLAUDE.md`)
 
-| What                                                         | Budget              |
-| ------------------------------------------------------------ | ------------------- |
-| Tracks payload (brotli)                                      | ≤ 600 KB            |
-| Cached `/api/v1/tracks` p95                                  | < 5 ms              |
-| `/api/v1/accesses` p95 (1 week, 2500 km)                     | < 60 ms             |
-| App JS chunk (gzip)                                          | ≤ 80 KB             |
-| Total JS (gzip)                                              | ≤ 750 KB            |
-| `/tracks` requests during timeline scrub or satellite toggle | **0**               |
-| Lighthouse FCP / LCP / Speed Index (median of 5, desktop)    | ≤ 1 s / 2 s / 1.5 s |
-| Lighthouse CLS / TBT                                         | ≤ 0.05 / 2 s        |
+| What                                                         | Budget                          |
+| ------------------------------------------------------------ | ------------------------------- |
+| Tracks payload (brotli)                                      | ≤ 600 KB                        |
+| Cached `/api/v1/tracks` p95                                  | < 5 ms                          |
+| `/api/v1/accesses` p95 (1 week, 2500 km)                     | < 60 ms                         |
+| App JS chunk (gzip)                                          | ≤ 80 KB                         |
+| Total JS (gzip)                                              | ≤ 750 KB                        |
+| `/tracks` requests during timeline scrub or satellite toggle | **0**                           |
+| Lighthouse FCP / LCP / Speed Index (median of 5, desktop)    | ≤ 1 s / 2 s / 2.4 s (CI runner) |
+| Lighthouse CLS / TBT                                         | ≤ 0.05 / 4 s (CI runner)        |
 
 The overall Lighthouse score is reported, not gated: WebGL start-up inside MapLibre and deck.gl
 dominates its TBT (ADR-010). Do not flag the score itself; flag regressions in the metrics above
