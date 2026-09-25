@@ -84,15 +84,16 @@ from the CI runner (software WebGL), where the gate runs.
 
 ## Testing matrix (keep in sync)
 
-| Feature                                                      | Unit / integration                                 | E2E                      |
-| ------------------------------------------------------------ | -------------------------------------------------- | ------------------------ |
-| Geo math, solar position, codec                              | `packages/shared/src/*.test.ts`                    | —                        |
-| Seed + `/dataset` `/tracks` `/accesses` `/healthz` `/readyz` | `apps/api/test/**` (Fastify `inject`, fixture DB)  | —                        |
-| Track rendering + satellite filter                           | store/utils tests                                  | `e2e/tracks.spec.ts`     |
-| Timeline (brush, presets, play, zero network)                | `features/timeline/*.test.ts`                      | `e2e/timeline.spec.ts`   |
-| Track hover tooltip                                          | nearest-vertex tests                               | `e2e/tooltip.spec.ts`    |
-| Accesses (pin, radius, dates, daylight, table, sync, CSV)    | `features/accesses/*.test.ts`                      | `e2e/accesses.spec.ts`   |
-| URL state / shareable links                                  | `state/url.test.ts`                                | `e2e/url-state.spec.ts`  |
-| Error and empty states, basemap fallback                     | component tests, `tracks/fetchTracks.test.ts`      | `e2e/resilience.spec.ts` |
-| Help dialog, first-run hint, keyboard (Space, ?)             | component + `hooks.test.tsx`                       | `e2e/onboarding.spec.ts` |
-| Performance budgets (ADR-010)                                | `api/src/perf/*.test.ts`, `web/scripts/*.test.mjs` | `pnpm perf` (CI `perf`)  |
+| Feature                                                      | Unit / integration                                           | E2E                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Geo math, solar position, codec                              | `packages/shared/src/*.test.ts`                              | —                                                                                |
+| Seed + `/dataset` `/tracks` `/accesses` `/healthz` `/readyz` | `apps/api/test/**` (Fastify `inject`, fixture DB)            | —                                                                                |
+| Track rendering + satellite filter                           | store/utils tests                                            | `e2e/tracks.spec.ts`                                                             |
+| Timeline (brush, presets, play, zero network)                | `features/timeline/*.test.ts`                                | `e2e/timeline.spec.ts`                                                           |
+| Track hover tooltip                                          | nearest-vertex tests                                         | `e2e/tooltip.spec.ts`                                                            |
+| Accesses (pin, radius, dates, daylight, table, sync, CSV)    | `features/accesses/*.test.ts`                                | `e2e/accesses.spec.ts`                                                           |
+| URL state / shareable links                                  | `state/url.test.ts`                                          | `e2e/url-state.spec.ts`                                                          |
+| Error and empty states, basemap fallback                     | component tests, `tracks/fetchTracks.test.ts`                | `e2e/resilience.spec.ts`                                                         |
+| Help dialog, first-run hint, keyboard (Space, ?)             | component + `hooks.test.tsx`                                 | `e2e/onboarding.spec.ts`                                                         |
+| Docker images, compose stack, deploy config (ADR-011)        | `scripts/securityHeaders.test.mjs` (nginx vs Vercel headers) | `scripts/docker-smoke.sh`, `e2e/smoke` (CI `docker` job; live site after deploy) |
+| Performance budgets (ADR-010)                                | `api/src/perf/*.test.ts`, `web/scripts/*.test.mjs`           | `pnpm perf` (CI `perf`)                                                          |

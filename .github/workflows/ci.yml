@@ -128,3 +128,77 @@ jobs:
             apps/web/lighthouse-report/
           if-no-files-found: ignore
           retention-days: 14
+
+  docker:
+    name: Docker (build · compose smoke · Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # Loaded into the local daemon under the names docker-compose.yml uses. The release workflow
+      # never reads these cache scopes (it keeps its own), so nothing this job runs can reach a
+      # published image.
+      - name: Build API image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          load: true
+          tags: orbitworks-api:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - name: Build web image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          load: true
+          tags: orbitworks-web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+      - name: Start the stack (waits for both healthchecks)
+        run: docker compose up --detach --no-build --wait --wait-timeout 120
+      - name: Smoke test through nginx (headers, compression, API, hardening)
+        run: bash scripts/docker-smoke.sh
+      # The same page a user gets, in a browser: production CSP, workers, API round trip.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter "@ow/web..."
+      - name: Install Chromium
+        run: pnpm --filter @ow/web exec playwright install --with-deps chromium
+      - name: Browser smoke test of the image
+        run: pnpm --filter @ow/web smoke
+      - name: Stack logs
+        if: failure()
+        run: docker compose logs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: docker-smoke-report
+          path: apps/web/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Scan the API image (fixable HIGH/CRITICAL fail the job)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: orbitworks-api:latest
+          # The scanner binary is pinned too, not only the action.
+          version: v0.74.0
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Scan the web image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: orbitworks-web:latest
+          version: v0.74.0
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          skip-setup-trivy: true

@@ -15,6 +15,12 @@ import {
   SATELLITE_ID_PATTERN,
 } from './constants.js';
 
+// The web app runs these schemas under a CSP without 'unsafe-eval' (ADR-011). Zod compiles object
+// parsers with `new Function` when it can, and even its feature probe (`Function('')`) is reported
+// as a CSP violation. Set here, before any schema is built, so it holds however the bundler orders
+// modules. The interpreted parser costs microseconds on our small objects (API bench unchanged).
+z.config({ jitless: true });
+
 // ---------------------------------------------------------------------------------------------
 // Primitives
 

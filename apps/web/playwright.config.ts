@@ -13,6 +13,8 @@ const CI = Boolean(process.env.CI);
 
 export default defineConfig({
   testDir: './e2e',
+  // e2e/smoke targets a running deployment, without test hooks (playwright.smoke.config.ts).
+  testIgnore: ['smoke/**'],
   globalSetup: './e2e/global-setup.ts',
   timeout: 30_000,
   expect: { timeout: 10_000 },

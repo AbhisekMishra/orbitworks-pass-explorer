@@ -26,3 +26,11 @@ updates:
     groups:
       actions:
         patterns: ['*']
+
+  - package-ecosystem: docker
+    directories: [/apps/api, /apps/web]
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      include: scope

@@ -1,0 +1,45 @@
+# Production-like stack: `docker compose up --build`, then open http://localhost:8080
+# The API image carries its seeded database; nothing is mounted and both root filesystems are
+# read-only.
+name: orbitworks
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 256
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: orbitworks-api
+    environment:
+      LOG_LEVEL: info
+      # nginx (web) is the one proxy in front: trust one hop for the client IP (rate limits).
+      TRUST_PROXY_HOPS: '1'
+    tmpfs: [/tmp]
+    expose: ['3000']
+    # Measured: about 365 MB resident (geometry in typed arrays + DuckDB), 2 cores for the pool.
+    mem_limit: 768m
+    cpus: 2
+    # Healthcheck: defined in the image (GET /readyz).
+
+  web:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: orbitworks-web
+    ports: ['8080:8080']
+    # nginx writes its pid and temp files under /tmp in the unprivileged image.
+    tmpfs: [/tmp]
+    # Measured: about 25 MB resident.
+    mem_limit: 128m
+    cpus: 1
+    depends_on:
+      api:
+        condition: service_healthy
