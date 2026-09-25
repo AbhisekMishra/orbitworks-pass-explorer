@@ -29,6 +29,10 @@ updates:
 
   - package-ecosystem: docker
     directories: [/apps/api, /apps/web]
+    ignore:
+      # Stay on the Node LTS line the runtime uses (distroless nodejs22); odd majors are not LTS.
+      - dependency-name: node
+        update-types: [version-update:semver-major]
     schedule:
       interval: weekly
     commit-message:
