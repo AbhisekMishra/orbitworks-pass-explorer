@@ -30,7 +30,7 @@ RUN pnpm --filter @ow/web build && \
 
 # ---------------------------------------------------------------------------------------------
 # Unprivileged nginx: runs as uid 101 and listens on 8080, so no root and no capabilities needed.
-FROM nginxinc/nginx-unprivileged:1.30-alpine@sha256:4714e0b1b2577eaa1a6131d07c958b67f0eb68e6d0521e90c6e5287db8cf0bc5 AS runtime
+FROM nginxinc/nginx-unprivileged:1.31-alpine@sha256:26b0bf6fbf07297983cb341998d79c831508787de26627dd2a112321b9c3a4af AS runtime
 # Alpine publishes security fixes faster than the base image is rebuilt: apply them at build time.
 USER 0
 RUN apk upgrade --no-cache
