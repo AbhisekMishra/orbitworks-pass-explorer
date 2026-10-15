@@ -23,11 +23,11 @@
     "test:changed": "vitest run --changed --passWithNoTests"
   },
   "dependencies": {
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^5.0.1",
-    "vitest": "^5.0.1",
+    "@vitest/coverage-v8": "^5.0.4",
+    "vitest": "^5.0.4",
     "fast-check": "^4.10.2"
   }
 }
