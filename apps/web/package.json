@@ -32,7 +32,7 @@
     "maplibre-gl": "^6.11.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "zod": "^4.6.5",
+    "zod": "^4.6.6",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
